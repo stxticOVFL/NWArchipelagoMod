@@ -1,0 +1,124 @@
+﻿<Project>
+    <PropertyGroup>
+        <!-- The name of the mod -->
+        <NWName>NWArchipelago</NWName>
+        <NWAuthor>stxticOVFL</NWAuthor>
+        <NWVersion>1.0.0</NWVersion>
+        <!-- The name of the *DLL* -->
+        <AssemblyName>$(NWName)</AssemblyName>
+
+        <!-- Root namespace of the mod -->
+        <RootNamespace>$(AssemblyName)</RootNamespace>
+
+        <!-- The folder to copy the DLL to, e.g. Mods or Plugins -->
+        <NWOutput Condition="'$(NWOutput)' == ''">
+            Mods
+        </NWOutput>
+        <!-- Whether or not to add NeonLite as a reference. Either true or false. Looks in NWDir/Mods -->
+        <NWNeonLite Condition="'$(NWNeonLite)' == ''">
+            true
+        </NWNeonLite>
+        <!-- Whether or not to add UniverseLib as a reference. Either true or false.
+             Looks in NWDir/Mods and NWDir/UserLibs -->
+        <NWUniLib Condition="'$(NWUniLib)' == ''">
+            false
+        </NWUniLib>
+
+        <!-- Whether or not to fill in the assembly info for you. This should usually be true.
+             This also controls GenerateAssemblyInfo -->
+        <NWAssembly Condition="'$(NWAssembly)' == ''">
+            true
+        </NWAssembly>
+        <!-- The name of the class that inherits the relevant Melon class, relative to the root namespace.
+             Usually this matches the name of the root namespace.
+             Only used if NWAssembly is on -->
+        <NWMelonClass>$(RootNamespace)</NWMelonClass>
+        <!-- The color to show in the log for the project. #RRGGBB.
+             Only used if NWAssembly is on -->
+        <NWColor>#757fbd</NWColor>
+        <!-- The author color to show in the log. #RRGGBB.
+             Only used if NWAssembly is on -->
+        <NWAuthorColor>#E17386</NWAuthorColor>
+
+        <!-- A path to Unity scripts to additionally compile. Useful for mods with independent UIs.
+             Editor scripts are skipped.
+             Leave empty if no Unity scripts. Advanced users only! -->
+        <NWUnityScripts>
+            UnityProject/Assets/Scripts/
+        </NWUnityScripts>
+    </PropertyGroup>
+
+    <Import Project="NWCommon.targets" />
+
+    <!-- Non-NWCommon properties, items, etc go here -->
+    <PropertyGroup>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <LangVersion>12.0</LangVersion>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Archipelago.MultiClient.Net" Version="*" GeneratePathProperty="true">
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+        <PackageReference Include="Archipelago.MultiClient.Net.Analyzers" Version="*">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="ILRepack.Lib.MSBuild.Task" Version="*" GeneratePathProperty="true">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>none</IncludeAssets>
+        </PackageReference>
+
+        <!-- Add further references by using $(NWManaged) and $(NWDirectory): -->
+        <Reference Include="$(NWManaged)/Unity.TextMeshPro.dll" Private="false" />
+        <Reference Include="$(NWManaged)/UnityEngine.UI.dll" Private="false" />
+        <Reference Include="$(NWManaged)/UnityEngine.UIModule.dll" Private="false" />
+        <Reference Include="$(NWManaged)/UnityEngine.AssetBundleModule.dll" Private="false" />
+        <Reference Include="$(NWManaged)/UnityEngine.UnityWebRequestModule.dll" Private="false" />
+
+        <EmbeddedResource Update="Resources/r.resx">
+            <!-- <Generator>ResXFileCodeGenerator</Generator> -->
+            <Generator>MSBuild:Compile</Generator>
+            <StronglyTypedLanguage>CSharp</StronglyTypedLanguage>
+            <StronglyTypedNamespace>NWArchipelago.Resources</StronglyTypedNamespace>
+            <StronglyTypedFileName>$(IntermediateOutputPath)r.Designer.cs</StronglyTypedFileName>
+            <StronglyTypedClassName>r</StronglyTypedClassName>
+        </EmbeddedResource>
+    </ItemGroup>
+
+    <Import Sdk="Microsoft.NET.Sdk" Project="Sdk.targets" />
+
+    <PropertyGroup>
+        <ArchiOutN>Archipelago.MultiClient.Net.dll</ArchiOutN>
+        <ArchiOut>$(TargetDir)/$(ArchiOutN)</ArchiOut>
+    </PropertyGroup>
+
+    <UsingTask AssemblyFile="$(PkgILRepack_Lib_MSBuild_Task)/build/ILRepack.Lib.MSBuild.Task.dll" TaskName="ILRepack"/>
+
+    <Target Name="ILRepack" AfterTargets="MoveDLL">
+        <Message Text="Combining Archipelago DLL..." Importance="high" />
+
+        <ItemGroup>
+            <ComboDLLs Include="$(PkgArchipelago_Multiclient_Net)/lib/netstandard2.0/*.dll" />
+        </ItemGroup>
+
+        <ILRepack
+            Parallel="true"
+            Internalize="true"
+            InputAssemblies="@(ComboDLLs)"
+            TargetKind="Dll"
+            OutputFile="$(ArchiOut)"
+        />
+    </Target>
+
+    <Target Name="ArchiMove" AfterTargets="ILRepack" >
+        <PropertyGroup>
+            <ArchiNW>UserLibs</ArchiNW>
+        </PropertyGroup>
+
+        <Message Text="Copying Archipelago DLL to $(ArchiNW)..." Importance="high" />
+
+        <Delete Condition="Exists('$(NWDirectory)/$(ArchiNW)/$(ArchiOutN)')" Files="$(NWDirectory)/$(ArchiNW)/$(ArchiOutN)" />
+        <Copy SourceFiles="$(ArchiOut)" DestinationFiles="$(NWDirectory)/$(ArchiNW)/$(ArchiOutN)" />
+    </Target>
+</Project>
