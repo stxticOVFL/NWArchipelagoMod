@@ -1,5 +1,4 @@
-﻿using NeonLite;
-using NeonLite.Modules;
+﻿using NeonLite.Modules;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,12 +11,22 @@ namespace NWArchipelago.Modules
     internal static class AchievementBlock
     {
         const bool priority = false;
-        const bool active = true;
+        static readonly string[] PREVENT = [
+            "IncrementCollectibles",
+            "SyncFistsAchievement",
+            "SyncAmmoDeathAchievement",
+            "SyncMissionCompleteAchievements",
+            "SyncCharacterFirstMemory",
+            "SyncMemoriesAchievements",
+            "SyncCharacterQuests",
+            "SyncGetCoinAchievement",
+            "SyncFirstGift"
+        ];
 
         internal static void Activate(bool _)
         {
-            Patching.AddPatch(typeof(Achievements), "SyncFistsAchievement", Prevent, Patching.PatchTarget.Prefix);
-            Patching.AddPatch(typeof(Achievements), "SyncAmmoDeathAchievement", Prevent, Patching.PatchTarget.Prefix);
+            foreach (var p in PREVENT)
+                Patching.AddPatch(typeof(Achievements), p, Prevent, Patching.PatchTarget.Prefix);
         }
         static bool Prevent() => false;
     }

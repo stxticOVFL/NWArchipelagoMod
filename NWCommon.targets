@@ -107,6 +107,10 @@
 
     <PropertyGroup Condition="'$(NWXbox)' == 'true'">
         <DefineConstants>$(DefineConstants);XBOX</DefineConstants>
+    <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+        <DebugType>embedded</DebugType>
+        <DebugSymbols>true</DebugSymbols>
+        <EmbedAllSources>true</EmbedAllSources>
     </PropertyGroup>
 
     <Target Name="MoveDLL" AfterTargets="AfterBuild" Condition="Exists('$(TargetDir)$(TargetName).dll') And Exists('$(NWDirectory)') And '$(NWCopy)' == 'true'">

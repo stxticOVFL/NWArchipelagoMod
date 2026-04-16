@@ -117,11 +117,19 @@ namespace NWArchipelago.Objects
         internal int ranks;
 
         internal readonly Dictionary<MedalEnum, HashSet<LevelRequirements>> perMedalLogic = [];
-        internal HashSet<LevelRequirements> giftLogic = [];
+        internal bool CanAccessLevel()
+        {
+            if (SaveHandler.archiSaveData.neonRank < ranks)
+                return false;
+            if (APManage.SlotData.unlockMethod == APManage.UnlockMethod.Levels
+                && !Campaign.unlockedLevels.Contains(level.levelID))
+                return false; // we're using level unlocks and yet we don't have it :broken_heart:
+            return true;
+        }
 
         internal bool CanGetMedal(MedalEnum medal)
         {
-            if (SaveHandler.archiSaveData.neonRank < ranks)
+            if (!CanAccessLevel())
                 return false;
             if (level.isSidequest && medal != MedalEnum.Bronze)
                 return false; // cheap way to chechk for completion
@@ -132,9 +140,7 @@ namespace NWArchipelago.Objects
 
             return perMedalLogic[medal].Any(HasRequirements);
         }
-        internal bool CanGift()
-        {
-            if (SaveHandler.archiSaveData.neonRank < ranks)
+            if (!CanAccessLevel())
                 return false;
             if (level.isSidequest || GIFTLESS.Contains(level.levelID))
                 return false; // these don't have one
@@ -205,12 +211,12 @@ namespace NWArchipelago.Objects
 
 #pragma warning disable CS0649
         [Serializable]
-        class LogicProxy
-        {
-            public int m;
-            public int r;
-            public int k;
-            public int e;
+    class LogicProxy
+    {
+        public int m;
+        public int r;
+        public int k;
+        public int e;
         }
 
         internal static bool loaded = false;
@@ -224,89 +230,43 @@ namespace NWArchipelago.Objects
                 foreach (var level in APManage.SlotData.levels)
                 {
                     var lname = LocalizationManager.GetTranslation(level.GetLevelDisplayName(), overrideLanguage: "English");
-                    var logics = json[lname] as ProxyArray;
-
-                    NWArchipelago.Log.DebugMsg(logics[0].ToJSON());
-                    NWArchipelago.Log.DebugMsg(JSON.Dump(logics[0].Make<LogicProxy>()));
-
-                    var normal = logicData.GetOrCreateValue(level);
-                    var full = fullData.GetOrCreateValue(level);
 
                     // FIRST PASS: fill the logic
                     foreach (var logic in logics.Select(x => x.Make<LogicProxy>()))
                     {
 
-                        void AddToLogic(Logic addTo)
+                        var req = (LevelRequirements)logic.r;
+                        void AddToSet(HashSet<LevelRequirements> set)
                         {
-                            if (logic.m == 5) // gift
-                            {
-                                addTo.giftLogic.Add((LevelRequirements)logic.r);
+                            if (set.Any(x => req.HasFlag(x)))
                                 return;
-                            }
-
-                            var cap = Math.Min((int)APManage.SlotData.medalCap, 4 - logic.m);
-
-                            for (int m = 0; m <= cap; ++m)
-                            {
-                                var medal = (MedalEnum)m;
-                                if (!addTo.perMedalLogic.TryGetValue(medal, out var set))
-                                {
-                                    set = [];
-                                    addTo.perMedalLogic.Add(medal, set);
-                                }
-                                set.Add((LevelRequirements)logic.r);
-                            }
+                            set.Add(req);
                         }
 
-                        AddToLogic(full);
-                        if (APManage.SlotData.knowledge >= logic.k && APManage.SlotData.execution >= logic.e)
-                            AddToLogic(normal);
-                    }
 
-                    // SECOND PASS: optimize
-                    void Optimize(HashSet<LevelRequirements> set)
-                    {
-                        // first, do we cheat
-                        if (set.Contains(LevelRequirements.FistOnly)) // come on bro
+                        if (logic.m == 5) // gift
                         {
-                            set.Clear();
-                            set.Add(LevelRequirements.FistOnly);
+                            AddToSet(addTo.giftLogic);
                             return;
                         }
 
-                        static int Count(LevelRequirements x)
-                        {
-                            int count = 0;
-                            int flags = (int)x;
-                            while (flags != 0)
-                            {
-                                flags &= flags - 1;
-                                count++;
-                            }
-                            return count;
-                        }
+                        var cap = Math.Min((int)APManage.SlotData.medalCap, 4 - logic.m);
 
-                        // order by largest first
-                        var iter = set.OrderByDescending(Count).Where(x => Count(x) > 1).ToArray();
-
-                        foreach (var reqs in iter)
+                        for (int m = 0; m <= cap; ++m)
+                            NWArchipelago.Log.DebugMsg($"adding to {medal}");
+                        if (!addTo.perMedalLogic.TryGetValue(medal, out var set))
                         {
-                            if (set.OrderBy(Count).Any(x => reqs.HasFlag(x)))
-                                set.Remove(reqs);
+                            set = [];
+                            addTo.perMedalLogic.Add(medal, set);
                         }
+                        AddToSet(set);
                     }
-
-                    foreach (var kv in normal.perMedalLogic)
-                        Optimize(kv.Value);
-                    foreach (var kv in full.perMedalLogic)
-                        Optimize(kv.Value);
-
-                    Optimize(normal.giftLogic);
-                    Optimize(full.giftLogic);
                 }
 
-                // WE LOADED!!!
-                loaded = true;
+                AddToLogic(full);
+                if (APManage.SlotData.knowledge >= logic.k && APManage.SlotData.execution >= logic.e)
+
+                    loaded = true;
                 return true;
             }
             catch (Exception e)

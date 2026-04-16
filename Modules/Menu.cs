@@ -18,32 +18,27 @@ namespace NWArchipelago.Modules
 
     [Module]
     internal static class Menu
+        static bool active = true;
+
+    internal static MelonPreferences_Entry<bool> showKey;
+
+    static void Setup()
     {
-        const bool priority = true;
-        const bool active = true;
-
-        internal static MelonPreferences_Entry<bool> showKey;
-
-        static void Setup()
-        {
-            showKey = NeonLite.Settings.Add(Settings.h, "", "showKey", "Show Vanilla Level Location",
-                """
+        showKey = NeonLite.Settings.Add(Settings.h, "", "showKey", "Show Vanilla Level Location",
+            """
                 Whether to show the original location next to level names in the style of something like (1-2).
-                Useful for checking the logic sheet for reference.
-                """, true);
+
+            active = !Settings.testMode;
         }
 
         static void Activate(bool _)
         {
-            if (Settings.testMode)
-                return;
             Patching.AddPatch(typeof(MainMenu), "OnPressButtonNewGame", Connect, Patching.PatchTarget.Prefix);
             Patching.AddPatch(typeof(MainMenu), "OnPressButtonStartGame", LoadHub, Patching.PatchTarget.Prefix);
 
             Patching.AddPatch(typeof(MenuScreenTitle), "OnSetVisible", SetupTitle, Patching.PatchTarget.Prefix);
             Patching.AddPatch(typeof(MenuScreenTitle), "OnSetVisible", Helpers.HM(SorryAnticheat).SetPriority(Priority.Last), Patching.PatchTarget.Postfix);
-
-            Patching.AddPatch(typeof(MenuScreenMission), "Setup", SetupMission, Patching.PatchTarget.Prefix);
+            Patching.AddPatch(typeof(MenuScreenLevel), "Setup", SetupLevel, Patching.PatchTarget.Prefix);
             Patching.AddPatch(typeof(MainMenu), "OnPressBackButton", ReloadMission, Patching.PatchTarget.Prefix);
 
             Patching.AddPatch(typeof(LevelInfo), "SetLevel", LevelInfoSetLevel, Patching.PatchTarget.Postfix);
@@ -53,10 +48,13 @@ namespace NWArchipelago.Modules
             Patching.AddPatch(typeof(MenuScreenPause), "OnSetVisible", AntiSidequestPost, Patching.PatchTarget.Postfix);
             Patching.AddPatch(typeof(MenuScreenResults), "OnSetVisible", AntiSidequestPost, Patching.PatchTarget.Postfix);
             Patching.AddPatch(typeof(LevelInfo), "SetLevel", YesSidequestPre, Patching.PatchTarget.Prefix);
-            Patching.AddPatch(typeof(LevelInfo), "SetLevel", YesSidequestPost, Patching.PatchTarget.Postfix);
-
-            Patching.AddPatch(typeof(MenuButtonLevel), "SetLevelData", AddLevelCheck, Patching.PatchTarget.Postfix);
+            Patching.AddPatch(typeof(MenuButtonLevel), "SetLevelData", LevelButtonPost, Patching.PatchTarget.Postfix);
             Patching.AddPatch(typeof(LevelInfo), "Localize", ReplaceEnvironment, Patching.PatchTarget.Postfix);
+
+            Patching.AddPatch(typeof(MainMenu), "SelectLevel",
+                Helpers.HM(SelectIfAllowed).SetPriority(Priority.First), Patching.PatchTarget.Prefix);
+            Patching.AddPatch(typeof(MenuPanelInventoryItem), "SetLevel",
+                Helpers.HM(HidePressStart).SetPriority(Priority.First), Patching.PatchTarget.Postfix);
 
             Patching.AddPatch(typeof(CommunityMedals), "PostSetLevel", Prevent, Patching.PatchTarget.Prefix);
         }
@@ -206,51 +204,143 @@ namespace NWArchipelago.Modules
             template.SetActive(value: true);
 
             bool doneLocked = false;
-            for (int i = 0; i < missions.Length; i++)
-            {
+                var mission = missions[i];
                 MenuButtonHolder b = Utils.InstantiateUI(template, "Mission Button", template.transform.parent).GetComponent<MenuButtonHolder>();
                 __instance.buttonsToLoad.Add(b);
                 ____missionButtons.Add(b);
-                b.SetMissionData(missions[i], i + 1);
+                b.SetMissionData(mission, i + 1);
                 b.onClickEvent.AddListener(() => __instance._firstNavElement = b.gameObject);
 
                 if (i <= GameDataManager.campaignStats[Singleton<Game>.Instance.GetGameData().GetCurrentCampaign().campaignID].GetFarthestMission() || GS.unlockLevels)
                 {
                     b.SetLocked(val: false);
-                    b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
-                        new AxKReplacementPair("{MN}", i + 1),
-                        new AxKReplacementPair("{CHK}", Logic.ChecksString(out var n, mission: missions[i])),
-                        new AxKReplacementPair("{CN}", n),
-                        new AxKReplacementPair("{MRK}", ""),
-                    ]);
+                    var chks = Logic.ChecksString(out var n, mission: mission);
+                    if (APManage.SlotData.unlockMethod != APManage.UnlockMethod.Levels)
+                    {
+                        b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
+                            new AxKReplacementPair("{MN}", i + 1),
+                            new AxKReplacementPair("{CHK}", chks),
+                            new AxKReplacementPair("{CN}", n),
+                            new AxKReplacementPair("{MRK}", ""),
+                        ]);
+                    }
                     b.buttonTextRef.lineSpacing = -15;
                     if (n <= 0)
                         SetButtonColor(b.ButtonRef, lowLight);
                 }
                 else if (!doneLocked)
                 {
-                    doneLocked = true;
-                    b.SetLocked(val: true);
-                    b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
-                        new AxKReplacementPair("{MN}", i + 1),
-                        new AxKReplacementPair("{MRK}", "NWArchipelago/MISSION_RANKS"),
-                        new AxKReplacementPair("{R0}", SaveHandler.archiSaveData.neonRank),
-                        new AxKReplacementPair("{R1}", missions[i].medalsRequired),
-                        new AxKReplacementPair("{CHK}", ""),
-                    ]);
+                    if (APManage.SlotData.unlockMethod == APManage.UnlockMethod.Missions)
+                    {
+                        b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
+                            new AxKReplacementPair("{MN}", i + 1),
+                            new AxKReplacementPair("{MRK}", ""),
+                            new AxKReplacementPair("{CHK}", ""),
+                        ]);
+                    }
+                    else
+                    {
+                        b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
+                            new AxKReplacementPair("{MN}", i + 1),
+                            new AxKReplacementPair("{MRK}", "NWArchipelago/MISSION_RANKS"),
+                            new AxKReplacementPair("{R0}", SaveHandler.archiSaveData.neonRank),
+                            new AxKReplacementPair("{R1}", mission.medalsRequired),
+                            new AxKReplacementPair("{CHK}", ""),
+                        ]);
+                    }
                     b.buttonTextRef.lineSpacing = -15;
                 }
                 else
                     b.gameObject.SetActive(value: false);
 
+                if (mission.missionID.StartsWith("M_SIDEQUESTS"))
+                    b.GetComponentInChildren<MenuButtonMission>()._textMissionIndex.text =
+                        Campaign.sidequestLRegex.Match(mission.missionID).Groups[1].Value;
             }
             __instance._scrollRectRef.verticalNormalizedPosition = 1f;
             __instance._missionMenuButtonTemplate.gameObject.SetActive(value: false);
             __instance._setup = true;
             return false;
+
+        static bool SetupLevel(MenuScreenLevel __instance, LevelData[] levels, List<MenuButtonHolder> ____levelButtons)
+        {
+            if (__instance._setup)
+                return false;
+
+            var template = __instance._levelButtonTemplate.gameObject;
+            template.SetActive(value: true);
+
+            var setupnav = Helpers.Method(typeof(MenuScreenLevel), "SetupNavigation");
+
+            for (int i = 0; i < levels.Length; i++)
+            {
+                var level = levels[i];
+                MenuButtonHolder b = Utils.InstantiateUI(template, "Level Button", template.transform.parent).GetComponent<MenuButtonHolder>();
+
+                __instance.buttonsToLoad.Add(b);
+                ____levelButtons.Add(b);
+                b.SetLevelData(level, i + 1);
+                b.onClickEvent.AddListener(() => setupnav.Invoke(__instance, []));
+
+                if (!Logic.Level(level).CanAccessLevel())
+                    b.SetLocked(true);
+            }
+
+            // navigation code from the original
+            if (____levelButtons.Count > 0)
+            {
+                int num = 0;
+                Toggle personalGhostToggle = MainMenu.Instance()._screenInspector.leaderboardsAndLevelInfoRef.insightInfoRef.personalGhostToggle;
+                Toggle selectOnRight = personalGhostToggle.interactable ? personalGhostToggle : null;
+                for (int j = 0; j < ____levelButtons.Count; j++)
+                {
+                    Navigation navigation = ____levelButtons[j].ButtonRef.navigation;
+                    if (____levelButtons[j].GetLocked())
+                        navigation.mode = Navigation.Mode.None;
+                    else
+                    {
+                        navigation.mode = Navigation.Mode.Explicit;
+                        navigation.selectOnUp = null;
+                        navigation.selectOnDown = Singleton<BackButtonAccessor>.Instance.BackButton;
+                        for (int num2 = j - 1; num2 >= 0; num2--)
+                        {
+                            if (!____levelButtons[num2].GetLocked())
+                            {
+                                navigation.selectOnUp = ____levelButtons[num2].ButtonRef;
+                                break;
+                            }
+                        }
+                        for (int k = j + 1; k < levels.Length; k++)
+                        {
+                            if (!____levelButtons[k].GetLocked())
+                            {
+                                navigation.selectOnDown = ____levelButtons[k].ButtonRef;
+                                break;
+                            }
+                        }
+                        navigation.selectOnRight = selectOnRight;
+                    }
+                    ____levelButtons[j].ButtonRef.navigation = navigation;
+                    if (j == num && ____levelButtons[j].gameObject.activeSelf)
+                    {
+                        __instance._firstNavElement = ____levelButtons[j].gameObject;
+                        MainMenu.Instance()._screenInspector.SetVisible(vis: true, animate: true);
+                        MainMenu.Instance()._screenInspector.SetLevel(____levelButtons[j], ____levelButtons[j].GetLevelData(), justRequestingScores: true);
+                    }
+                    else
+                        num++;
+                }
+            }
+            else
+                __instance._firstNavElement = MainMenu.Instance()._backButton.gameObject;
+
+            __instance.scrollRectRef.verticalNormalizedPosition = 1f;
+            __instance._levelButtonTemplate.gameObject.SetActive(value: false);
+            __instance._setup = true;
+            return false;
         }
 
-        static void AddLevelCheck(MenuButtonLevel __instance, LevelData ld)
+        static void LevelButtonPost(MenuButtonLevel __instance, LevelData ld)
         {
             var s = Logic.ChecksString(out var checks, level: ld);
 
@@ -283,8 +373,9 @@ namespace NWArchipelago.Modules
                 else
                     SetButtonColor(__instance._button, lowLight);
             }
-            else
-                SetButtonColor(__instance._button, new Color32(230, 255, 230, 255));
+
+            if (APManage.SlotData.unlockMethod == APManage.UnlockMethod.Levels)
+                __instance.SetLocked(!Campaign.unlockedLevels.Contains(ld.levelID));
         }
 
         static void ReplaceEnvironment(LevelInfo __instance, LevelData ____currentLevel)
@@ -394,7 +485,17 @@ namespace NWArchipelago.Modules
         static void AntiSidequestPost(bool __state)
         {
             if (__state)
-                LoadManager.currentLevel.isSidequest = true;
+
+
+        static bool SelectIfAllowed(string levelID)
+        {
+            var gd = Singleton<Game>.Instance.GetGameData();
+            return Logic.Level(gd.GetLevelData(levelID)).CanAccessLevel();
+        }
+        static void HidePressStart(MenuPanelInventoryItem __instance, LevelData level)
+        {
+            if (__instance._pressToPlayPrompt && __instance._pressToPlayPrompt.gameObject.activeSelf)
+                __instance._pressToPlayPrompt.gameObject.SetActive(Logic.Level(level).CanAccessLevel());
         }
     }
 }
