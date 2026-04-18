@@ -130,11 +130,8 @@ namespace NWArchipelago.Modules
         internal static bool doCampaignCheck = true;
         internal static void ItemRecieved(ReceivedItemsHelper helper)
         {
-            NWArchipelago.Log.DebugMsg("itemrecieved");
             while (helper.PeekItem() != null)
             {
-                NWArchipelago.Log.DebugMsg("peek != null");
-
                 var item = helper.DequeueItem();
 
                 if (helper.Index <= itemIndex)
@@ -152,15 +149,7 @@ namespace NWArchipelago.Modules
         {
             if (item.ItemId >= 600)
             {
-                // this is a level
-                var gd = Singleton<Game>.Instance.GetGameData();
-                var campaign = gd.GetCurrentCampaign();
-                // a bit of a wild opt here we know is safe cause of how level unlock works
-                var level = campaign.missionData.SelectMany(x => x.levels)
-                    .Skip((int)(item.ItemId - 600))
-                    .First();
-
-                Campaign.unlockedLevels.Add(level.levelID);
+                Campaign.unlockedLevels.Add((int)(item.ItemId - 600));
                 return;
             }
 
@@ -375,6 +364,19 @@ namespace NWArchipelago.Modules
             }
         }
 
+
+        static void EnableCampaignCheck(ArchipelagoPacketBase p)
+            => doCampaignCheck = p is ReceivedItemsPacket;
+
+        internal static async Task PrepareItemChecks()
+        {
+            doCampaignCheck = false;
+            session.Items.ItemReceived -= ItemRecieved;
+            session.Items.ItemReceived += ItemRecieved;
+
+            session.Socket.PacketReceived += EnableCampaignCheck;
+        }
+
         internal static async Task OnConnect(RoomInfoPacket info, LoginSuccessful login)
         {
             var variant = JSON.Load(JSONWrap.Serialize(login.SlotData)) as ProxyObject;
@@ -452,26 +454,18 @@ namespace NWArchipelago.Modules
                 NWArchipelago.Log.DebugMsg("save redir");
                 Anticheat.EnableSaveRedirection(Path.Combine("Archipelago", ((RoomInfoPacket)info).SeedName), true);
                 SaveHandler.allowed = true;
+                var currRank = SaveHandler.archiSaveData.neonRank;
                 GameDataManager.LoadGame(null);
 
                 NWArchipelago.Log.DebugMsg("set archidata");
                 SaveHandler.archiSaveData = (GameDataManager.saveData as SaveHandler.ArchipelagoSave).apData;
                 Menu.previousRank = SaveHandler.archiSaveData.neonRank;
-                SaveHandler.archiSaveData.neonRank = 0;
+                SaveHandler.archiSaveData.neonRank = currRank;
 
                 Campaign.HandleSaveCData();
             }, info);
 
             NWArchipelago.Log.DebugMsg("items recieved checks");
-            doCampaignCheck = false;
-            session.Items.ItemReceived -= ItemRecieved;
-            session.Items.ItemReceived += ItemRecieved;
-
-            static void EnableCampaignCheck(ArchipelagoPacketBase _)
-                => doCampaignCheck = true;
-
-            session.Socket.PacketReceived += EnableCampaignCheck;
-            await session.Socket.SendPacketAsync(new SyncPacket());
 
             static async Task WaitForPacket()
             {
@@ -481,7 +475,7 @@ namespace NWArchipelago.Modules
 
             using (CancellationTokenSource delayCancel = new())
             {
-                var delay = Task.Delay(TimeSpan.FromSeconds(1), delayCancel.Token);
+                var delay = Task.Delay(TimeSpan.FromSeconds(0.25), delayCancel.Token);
                 await Task.WhenAny(WaitForPacket(), delay).ConfigureAwait(false);
                 delayCancel.Cancel();
             }
@@ -508,6 +502,8 @@ namespace NWArchipelago.Modules
             }
 
             NWArchipelago.Log.DebugMsg("done!");
+
+            Campaign.HandleSaveCData(true);
         }
 
         internal static void OnCollectible(LevelStats __instance)

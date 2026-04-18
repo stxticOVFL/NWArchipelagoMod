@@ -45,7 +45,7 @@ namespace NWArchipelago.Modules
 
         internal static readonly Dictionary<string, string> levelKey = [];
 
-        internal static HashSet<string> unlockedLevels = [];
+        internal static HashSet<int> unlockedLevels = [];
         internal static CampaignData campaign;
         internal static void MakeCampaign()
         {
@@ -187,7 +187,7 @@ namespace NWArchipelago.Modules
                     }
                 }
 
-                cstats.SetFarthestMission(furthest - 1, save);
+                cstats.SetFarthestMission(furthest - 1, false);
             }
             else
             {
@@ -200,13 +200,15 @@ namespace NWArchipelago.Modules
                     foreach (var level in mission.levels)
                     {
                         var lstats = GameDataManager.levelStats[level.levelID];
-                        lstats.SetForceUnlocked(unlockedLevels.Contains(level.levelID), false);
+                        lstats.SetForceUnlocked(unlockedLevels.Contains(level.levelIntegerID), false);
                         Logic.Level(level);
                     }
                 }
 
-                cstats.SetFarthestMission(campaign.missionData.Count - 1, save);
+                cstats.SetFarthestMission(campaign.missionData.Count - 1, false);
             }
+            if (save)
+                SaveHandler.saveTimer = 1;
         }
 
         static void PreventPlayString(ref string newLevelID, ref bool fromArchive)

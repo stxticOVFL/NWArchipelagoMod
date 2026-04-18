@@ -1,6 +1,7 @@
 ﻿using NeonLite.Modules;
 using Newtonsoft.Json;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -101,7 +102,7 @@ namespace NWArchipelago.Modules
             public ArchipelagoData apData = new();
         }
 
-        internal static ArchipelagoSave.ArchipelagoData archiSaveData;
+        internal static ArchipelagoSave.ArchipelagoData archiSaveData = new();
 
         static bool GetNeonRank(ref int __result)
         {
@@ -109,6 +110,21 @@ namespace NWArchipelago.Modules
                 return true;
             __result = archiSaveData.neonRank;
             return false;
+        }
+
+        internal static float saveTimer = -1;
+
+        internal static IEnumerator SaveCoro()
+        {
+            while (true)
+            {
+                while (saveTimer < 0)
+                    yield return null;
+                saveTimer -= Time.unscaledDeltaTime;
+                if (saveTimer < 0)
+                    GameDataManager.SaveGame();
+                yield return null;
+            }
         }
     }
 }

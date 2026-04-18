@@ -284,6 +284,7 @@ namespace NWArchipelago.Objects
 
             try
             {
+                await APManage.PrepareItemChecks();
                 var info = await APManage.session.ConnectAsync().ConfigureAwait(false);
 
                 NWArchipelago.Log.DebugMsg($"info {info.Password} {info.SeedName}");

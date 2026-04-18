@@ -389,7 +389,7 @@ namespace NWArchipelago.Modules
                 SetButtonColor(__instance._button, new Color32(230, 255, 230, 255));
 
             if (APManage.SlotData.unlockMethod == APManage.UnlockMethod.Levels)
-                __instance.SetLocked(!Campaign.unlockedLevels.Contains(ld.levelID));
+                __instance.SetLocked(!Campaign.unlockedLevels.Contains(ld.levelIntegerID));
         }
 
         static void ReplaceEnvironment(LevelInfo __instance, LevelData ____currentLevel)

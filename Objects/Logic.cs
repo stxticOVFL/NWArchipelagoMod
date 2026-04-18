@@ -124,7 +124,7 @@ namespace NWArchipelago.Objects
             if (SaveHandler.archiSaveData.neonRank < ranks)
                 return false;
             if (APManage.SlotData.unlockMethod == APManage.UnlockMethod.Levels
-                && !Campaign.unlockedLevels.Contains(level.levelID))
+                && !Campaign.unlockedLevels.Contains(level.levelIntegerID))
                 return false; // we're using level unlocks and yet we don't have it :broken_heart:
             return true;
         }
@@ -235,9 +235,6 @@ namespace NWArchipelago.Objects
                 {
                     var lname = LocalizationManager.GetTranslation(level.GetLevelDisplayName(), overrideLanguage: "English");
                     var logics = json[lname] as ProxyArray;
-
-                    NWArchipelago.Log.DebugMsg(logics[0].ToJSON());
-                    NWArchipelago.Log.DebugMsg(JSON.Dump(logics[0].Make<LogicProxy>()));
 
                     var normal = logicData.GetOrCreateValue(level);
                     var full = fullData.GetOrCreateValue(level);

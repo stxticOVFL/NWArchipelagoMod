@@ -60,6 +60,8 @@ namespace NWArchipelago
             mainContext = SynchronizationContext.Current;
             holder = new GameObject("NWArchipelago", typeof(Scheduler));
             UnityEngine.Object.DontDestroyOnLoad(holder);
+
+            MelonCoroutines.Start(SaveHandler.SaveCoro());
         }
 
         internal static void CheckAnticheat()
