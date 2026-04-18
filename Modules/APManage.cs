@@ -181,7 +181,6 @@ namespace NWArchipelago.Modules
             List<string> locs = new((int)MedalEnum.Dev);
 
             int medal = GetMedalIndex(level.levelID, time);
-            NWArchipelago.Log.DebugMsg($"level complete {level} {time} {medal}");
 
             for (int i = 0; i <= medal && i <= (int)SlotData.medalCap; ++i)
                 locs.Add(string.Format(format, lname, (MedalEnum)i));
@@ -208,27 +207,17 @@ namespace NWArchipelago.Modules
             if (ConnectionStatus != ConnectStatus.Connected)
                 return;
 
-            foreach (var s in locations)
-                NWArchipelago.Log.DebugMsg($"trysend {s} {session.Locations.GetLocationIdFromName(session.ConnectionInfo.Game, s)}");
-
             var iter = locations.Select(x => (x, session.Locations.GetLocationIdFromName(session.ConnectionInfo.Game, x)));
 
             foreach ((var loc, var id) in iter)
             {
-                NWArchipelago.Log.DebugMsg($"sending {loc} id {id}");
                 if (id == -1)
-                {
-                    NWArchipelago.Log.DebugMsg($"id is -1 item doesn't exist");
                     continue;
-                }
+
                 if (session.Locations.AllLocationsChecked.Contains(id))
-                {
-                    NWArchipelago.Log.DebugMsg($"already have location");
                     continue;
-                }
 
                 NWArchipelago.CoroTask(session.Locations.CompleteLocationChecksAsync(id));
-                NWArchipelago.Log.DebugMsg($"sent {loc} id {id}");
             }
             CheckWinCon();
         }
