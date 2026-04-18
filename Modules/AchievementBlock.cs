@@ -11,6 +11,8 @@ namespace NWArchipelago.Modules
     internal static class AchievementBlock
     {
         const bool priority = false;
+        const bool active = true;
+
         static readonly string[] PREVENT = [
             "IncrementCollectibles",
             "SyncFistsAchievement",

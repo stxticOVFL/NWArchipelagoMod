@@ -18,15 +18,19 @@ namespace NWArchipelago.Modules
 
     [Module]
     internal static class Menu
+    {
+        const bool priority = true;
         static bool active = true;
 
-    internal static MelonPreferences_Entry<bool> showKey;
+        internal static MelonPreferences_Entry<bool> showKey;
 
-    static void Setup()
-    {
-        showKey = NeonLite.Settings.Add(Settings.h, "", "showKey", "Show Vanilla Level Location",
-            """
+        static void Setup()
+        {
+            showKey = NeonLite.Settings.Add(Settings.h, "", "showKey", "Show Vanilla Level Location",
+                """
                 Whether to show the original location next to level names in the style of something like (1-2).
+                Useful for checking the logic sheet for reference.
+                """, true);
 
             active = !Settings.testMode;
         }
@@ -39,6 +43,7 @@ namespace NWArchipelago.Modules
             Patching.AddPatch(typeof(MenuScreenTitle), "OnSetVisible", SetupTitle, Patching.PatchTarget.Prefix);
             Patching.AddPatch(typeof(MenuScreenTitle), "OnSetVisible", Helpers.HM(SorryAnticheat).SetPriority(Priority.Last), Patching.PatchTarget.Postfix);
             Patching.AddPatch(typeof(MenuScreenLevel), "Setup", SetupLevel, Patching.PatchTarget.Prefix);
+            Patching.AddPatch(typeof(MenuScreenMission), "Setup", SetupMission, Patching.PatchTarget.Prefix);
             Patching.AddPatch(typeof(MainMenu), "OnPressBackButton", ReloadMission, Patching.PatchTarget.Prefix);
 
             Patching.AddPatch(typeof(LevelInfo), "SetLevel", LevelInfoSetLevel, Patching.PatchTarget.Postfix);
@@ -48,6 +53,8 @@ namespace NWArchipelago.Modules
             Patching.AddPatch(typeof(MenuScreenPause), "OnSetVisible", AntiSidequestPost, Patching.PatchTarget.Postfix);
             Patching.AddPatch(typeof(MenuScreenResults), "OnSetVisible", AntiSidequestPost, Patching.PatchTarget.Postfix);
             Patching.AddPatch(typeof(LevelInfo), "SetLevel", YesSidequestPre, Patching.PatchTarget.Prefix);
+            Patching.AddPatch(typeof(LevelInfo), "SetLevel", YesSidequestPost, Patching.PatchTarget.Postfix);
+
             Patching.AddPatch(typeof(MenuButtonLevel), "SetLevelData", LevelButtonPost, Patching.PatchTarget.Postfix);
             Patching.AddPatch(typeof(LevelInfo), "Localize", ReplaceEnvironment, Patching.PatchTarget.Postfix);
 
@@ -203,7 +210,9 @@ namespace NWArchipelago.Modules
             var template = __instance._missionMenuButtonTemplate.gameObject;
             template.SetActive(value: true);
 
-            bool doneLocked = false;
+            for (int i = 0; i < missions.Length; ++i)
+            {
+                bool doneLocked = false;
                 var mission = missions[i];
                 MenuButtonHolder b = Utils.InstantiateUI(template, "Mission Button", template.transform.parent).GetComponent<MenuButtonHolder>();
                 __instance.buttonsToLoad.Add(b);
@@ -257,10 +266,13 @@ namespace NWArchipelago.Modules
                     b.GetComponentInChildren<MenuButtonMission>()._textMissionIndex.text =
                         Campaign.sidequestLRegex.Match(mission.missionID).Groups[1].Value;
             }
+
             __instance._scrollRectRef.verticalNormalizedPosition = 1f;
             __instance._missionMenuButtonTemplate.gameObject.SetActive(value: false);
             __instance._setup = true;
             return false;
+        }
+
 
         static bool SetupLevel(MenuScreenLevel __instance, LevelData[] levels, List<MenuButtonHolder> ____levelButtons)
         {
@@ -373,6 +385,8 @@ namespace NWArchipelago.Modules
                 else
                     SetButtonColor(__instance._button, lowLight);
             }
+            else
+                SetButtonColor(__instance._button, new Color32(230, 255, 230, 255));
 
             if (APManage.SlotData.unlockMethod == APManage.UnlockMethod.Levels)
                 __instance.SetLocked(!Campaign.unlockedLevels.Contains(ld.levelID));
@@ -485,7 +499,8 @@ namespace NWArchipelago.Modules
         static void AntiSidequestPost(bool __state)
         {
             if (__state)
-
+                LoadManager.currentLevel.isSidequest = true;
+        }
 
         static bool SelectIfAllowed(string levelID)
         {

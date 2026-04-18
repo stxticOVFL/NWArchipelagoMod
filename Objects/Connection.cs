@@ -1,10 +1,15 @@
-﻿
+﻿using System.Net;
+using System.Net.WebSockets;
 using System.Reflection.Emit;
 using System.Text;
 using Archipelago.MultiClient.Net;
 using Archipelago.MultiClient.Net.Converters;
 using Archipelago.MultiClient.Net.Enums;
-
+using Archipelago.MultiClient.Net.Helpers;
+using HarmonyLib;
+using NeonLite.Modules;
+using Newtonsoft.Json;
+using NWArchipelago.Modules;
 using UnityEngine;
 
 namespace NWArchipelago.Objects

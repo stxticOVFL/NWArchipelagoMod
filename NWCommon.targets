@@ -74,7 +74,10 @@
     <!-- Basic references -->
     <ItemGroup>
         <!-- add all system references here -->
+        <!-- <Reference Include="$(NWDirectory)/MelonLoader/Managed/System.*" Private="false" /> -->
         <Reference Include="$(NWManaged)/System.*" Private="false" />
+        <!-- <Reference Include="$(NWDirectory)/MelonLoader/Managed/mscorlib.dll" Private="false" /> -->
+        <!-- <Reference Include="$(NWDirectory)/MelonLoader/Managed/netstandard.dll" Private="false" /> -->
         <Reference Include="$(NWManaged)/mscorlib.dll" Private="false" />
         <Reference Include="$(NWManaged)/netstandard.dll" Private="false" />
 
@@ -107,6 +110,8 @@
 
     <PropertyGroup Condition="'$(NWXbox)' == 'true'">
         <DefineConstants>$(DefineConstants);XBOX</DefineConstants>
+    </PropertyGroup>
+
     <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
         <DebugType>embedded</DebugType>
         <DebugSymbols>true</DebugSymbols>

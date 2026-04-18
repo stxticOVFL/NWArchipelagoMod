@@ -293,7 +293,7 @@ namespace NWArchipelago.Modules
 
         static bool StopTutorial(CardPickupSpawner __instance)
         {
-            if (__instance.card.consumableType == PlayerCardData.ConsumableType.Tutorial && !tutorials.Value)
+            if (__instance.card && __instance.card.consumableType == PlayerCardData.ConsumableType.Tutorial && !tutorials.Value)
                 return false;
 
             return true;

@@ -119,7 +119,9 @@ namespace NWArchipelago.Modules
 
         internal static int itemIndex = 0;
         internal static bool doCampaignCheck = true;
-        NWArchipelago.Log.DebugMsg("itemrecieved");
+        internal static void ItemRecieved(ReceivedItemsHelper helper)
+        {
+            NWArchipelago.Log.DebugMsg("itemrecieved");
             while (helper.PeekItem() != null)
             {
                 NWArchipelago.Log.DebugMsg("peek != null");
@@ -130,6 +132,8 @@ namespace NWArchipelago.Modules
                     return;
                 itemIndex++;
 
+                ParseItem(item);
+            }
 
             if (doCampaignCheck)
                 Campaign.HandleSaveCData(true);
@@ -247,95 +251,95 @@ namespace NWArchipelago.Modules
         /// http://www.codinghorror.com/blog/archives/000410.html
         /// </remarks>
         class Ascii85
-    {
-        private const int _asciiOffset = 33;
-        private readonly byte[] _encodedBlock = new byte[5];
-        private readonly byte[] _decodedBlock = new byte[4];
-        private uint _tuple = 0;
-
-        private readonly uint[] pow85 = [85 * 85 * 85 * 85, 85 * 85 * 85, 85 * 85, 85, 1];
-
-        /// <summary>
-        /// Decodes an ASCII85 encoded string into the original binary data
-        /// </summary>
-        /// <param name="s">ASCII85 encoded string</param>
-        /// <returns>byte array of decoded binary data</returns>
-        public MemoryStream Decode(string s)
         {
-            MemoryStream ms = new();
-            int count = 0;
-            bool processChar;
+            private const int _asciiOffset = 33;
+            private readonly byte[] _encodedBlock = new byte[5];
+            private readonly byte[] _decodedBlock = new byte[4];
+            private uint _tuple = 0;
 
-            foreach (char c in s)
+            private readonly uint[] pow85 = [85 * 85 * 85 * 85, 85 * 85 * 85, 85 * 85, 85, 1];
+
+            /// <summary>
+            /// Decodes an ASCII85 encoded string into the original binary data
+            /// </summary>
+            /// <param name="s">ASCII85 encoded string</param>
+            /// <returns>byte array of decoded binary data</returns>
+            public MemoryStream Decode(string s)
             {
-                switch (c)
-                {
-                    case 'z':
-                        if (count != 0)
-                            throw new Exception("The character 'z' is invalid inside an ASCII85 block.");
-                        _decodedBlock[0] = 0;
-                        _decodedBlock[1] = 0;
-                        _decodedBlock[2] = 0;
-                        _decodedBlock[3] = 0;
-                        ms.Write(_decodedBlock, 0, _decodedBlock.Length);
-                        processChar = false;
-                        break;
-                    case '\n':
-                    case '\r':
-                    case '\t':
-                    case '\0':
-                    case '\f':
-                    case '\b':
-                        processChar = false;
-                        break;
-                    default:
-                        if (c < '!' || c > 'u')
-                            throw new Exception("Bad character '" + c + "' found. ASCII85 only allows characters '!' to 'u'.");
-                        processChar = true;
-                        break;
-                }
+                MemoryStream ms = new();
+                int count = 0;
+                bool processChar;
 
-                if (processChar)
+                foreach (char c in s)
                 {
-                    _tuple += (uint)(c - _asciiOffset) * pow85[count];
-                    count++;
-                    if (count == _encodedBlock.Length)
+                    switch (c)
                     {
-                        DecodeBlock();
-                        ms.Write(_decodedBlock, 0, _decodedBlock.Length);
-                        _tuple = 0;
-                        count = 0;
+                        case 'z':
+                            if (count != 0)
+                                throw new Exception("The character 'z' is invalid inside an ASCII85 block.");
+                            _decodedBlock[0] = 0;
+                            _decodedBlock[1] = 0;
+                            _decodedBlock[2] = 0;
+                            _decodedBlock[3] = 0;
+                            ms.Write(_decodedBlock, 0, _decodedBlock.Length);
+                            processChar = false;
+                            break;
+                        case '\n':
+                        case '\r':
+                        case '\t':
+                        case '\0':
+                        case '\f':
+                        case '\b':
+                            processChar = false;
+                            break;
+                        default:
+                            if (c < '!' || c > 'u')
+                                throw new Exception("Bad character '" + c + "' found. ASCII85 only allows characters '!' to 'u'.");
+                            processChar = true;
+                            break;
+                    }
+
+                    if (processChar)
+                    {
+                        _tuple += (uint)(c - _asciiOffset) * pow85[count];
+                        count++;
+                        if (count == _encodedBlock.Length)
+                        {
+                            DecodeBlock();
+                            ms.Write(_decodedBlock, 0, _decodedBlock.Length);
+                            _tuple = 0;
+                            count = 0;
+                        }
                     }
                 }
+
+                // if we have some bytes left over at the end..
+                if (count != 0)
+                {
+                    if (count == 1)
+                        throw new Exception("The last block of ASCII85 data cannot be a single byte.");
+                    count--;
+                    _tuple += pow85[count];
+                    DecodeBlock(count);
+                    for (int i = 0; i < count; i++)
+                    {
+                        ms.WriteByte(_decodedBlock[i]);
+                    }
+                }
+
+                ms.Seek(0, SeekOrigin.Begin);
+                return ms;
             }
 
-            // if we have some bytes left over at the end..
-            if (count != 0)
+            private void DecodeBlock() => DecodeBlock(_decodedBlock.Length);
+
+            private void DecodeBlock(int bytes)
             {
-                if (count == 1)
-                    throw new Exception("The last block of ASCII85 data cannot be a single byte.");
-                count--;
-                _tuple += pow85[count];
-                DecodeBlock(count);
-                for (int i = 0; i < count; i++)
+                for (int i = 0; i < bytes; i++)
                 {
-                    ms.WriteByte(_decodedBlock[i]);
+                    _decodedBlock[i] = (byte)(_tuple >> 24 - (i * 8));
                 }
             }
-
-            ms.Seek(0, SeekOrigin.Begin);
-            return ms;
-        }
-
-        private void DecodeBlock() => DecodeBlock(_decodedBlock.Length);
-
-        private void DecodeBlock(int bytes)
-        {
-            for (int i = 0; i < bytes; i++)
-            {
-                _decodedBlock[i] = (byte)(_tuple >> 24 - (i * 8));
-            }
-        }
         }
 
         internal static async Task OnConnect(RoomInfoPacket info, LoginSuccessful login)
@@ -403,51 +407,57 @@ namespace NWArchipelago.Modules
                     NWArchipelago.Log.Msg("Logic loaded!");
             }
 
-            NWArchipelago.Log.DebugMsg("build campaign");
-            Campaign.MakeCampaign();
+            NWArchipelago.mainContext.Send(static info =>
+            {
+                NWArchipelago.Log.DebugMsg("build campaign");
+                Campaign.MakeCampaign();
 
-            NWArchipelago.Log.DebugMsg("save redir");
-            Anticheat.EnableSaveRedirection(Path.Combine("Archipelago", ((RoomInfoPacket)info).SeedName), true);
-            SaveHandler.allowed = true;
-            GameDataManager.LoadGame(null);
+                NWArchipelago.Log.DebugMsg("save redir");
+                Anticheat.EnableSaveRedirection(Path.Combine("Archipelago", ((RoomInfoPacket)info).SeedName), true);
+                SaveHandler.allowed = true;
+                GameDataManager.LoadGame(null);
 
-            NWArchipelago.Log.DebugMsg("set archidata");
-            SaveHandler.archiSaveData = (GameDataManager.saveData as SaveHandler.ArchipelagoSave).apData;
-            Menu.previousRank = SaveHandler.archiSaveData.neonRank;
-            SaveHandler.archiSaveData.neonRank = 0;
+                NWArchipelago.Log.DebugMsg("set archidata");
+                SaveHandler.archiSaveData = (GameDataManager.saveData as SaveHandler.ArchipelagoSave).apData;
+                Menu.previousRank = SaveHandler.archiSaveData.neonRank;
+                SaveHandler.archiSaveData.neonRank = 0;
 
-            Campaign.HandleSaveCData();
-        }, info);
+                Campaign.HandleSaveCData();
+            }, info);
 
             NWArchipelago.Log.DebugMsg("items recieved checks");
             doCampaignCheck = false;
             session.Items.ItemReceived -= ItemRecieved;
+            session.Items.ItemReceived += ItemRecieved;
+
             static void EnableCampaignCheck(ArchipelagoPacketBase _)
                 => doCampaignCheck = true;
 
-    session.Socket.PacketReceived += EnableCampaignCheck;
+            session.Socket.PacketReceived += EnableCampaignCheck;
             await session.Socket.SendPacketAsync(new SyncPacket());
 
             static async Task WaitForPacket()
-    {
-        while (!doCampaignCheck)
-            await Task.Delay(1);
-    }
+            {
+                while (!doCampaignCheck)
+                    await Task.Delay(1);
+            }
 
-            using (CancellationTokenSource delayCancel = new ())
+            using (CancellationTokenSource delayCancel = new())
             {
                 var delay = Task.Delay(TimeSpan.FromSeconds(1), delayCancel.Token);
-    await Task.WhenAny(WaitForPacket(), delay).ConfigureAwait(false);
-    delayCancel.Cancel();
+                await Task.WhenAny(WaitForPacket(), delay).ConfigureAwait(false);
+                delayCancel.Cancel();
+            }
+
             session.Socket.PacketReceived -= EnableCampaignCheck;
             if (!doCampaignCheck)
                 doCampaignCheck = true;
 
             NWArchipelago.Log.DebugMsg("set status");
             SetConnectStatus(ConnectStatus.Connected);
-    OnLevelLoad(LoadManager.currentLevel);
+            OnLevelLoad(LoadManager.currentLevel);
 
-    NWArchipelago.Log.DebugMsg("check current levels");
+            NWArchipelago.Log.DebugMsg("check current levels");
             foreach (var level in SlotData.levels)
             {
                 var lstats = GameDataManager.GetLevelStats(level.levelID);
@@ -458,19 +468,19 @@ namespace NWArchipelago.Modules
                     SendLevelComplete(level, lstats._timeBestMicroseconds);
                 if (lstats.HasCollectibleBeenFound())
                     SendGiftComplete(level);
-}
+            }
 
-NWArchipelago.Log.DebugMsg("done!");
+            NWArchipelago.Log.DebugMsg("done!");
         }
 
         internal static void OnCollectible(LevelStats __instance)
-{
-    var levelID = GameDataManager.levelStats.Where(kv => kv.Value == __instance).Select(kv => kv.Key).FirstOrDefault();
-    var level = Singleton<Game>.Instance.GetGameData().GetLevelData(levelID);
-    if (!level)
-        return;
+        {
+            var levelID = GameDataManager.levelStats.Where(kv => kv.Value == __instance).Select(kv => kv.Key).FirstOrDefault();
+            var level = Singleton<Game>.Instance.GetGameData().GetLevelData(levelID);
+            if (!level)
+                return;
 
-    SendGiftComplete(level);
-}
+            SendGiftComplete(level);
+        }
     }
 }
