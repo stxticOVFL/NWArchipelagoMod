@@ -52,8 +52,8 @@ namespace NWArchipelago.Modules
             Patching.AddPatch(typeof(MenuScreenResults), "OnSetVisible", AntiSidequestPre, Patching.PatchTarget.Prefix);
             Patching.AddPatch(typeof(MenuScreenPause), "OnSetVisible", AntiSidequestPost, Patching.PatchTarget.Postfix);
             Patching.AddPatch(typeof(MenuScreenResults), "OnSetVisible", AntiSidequestPost, Patching.PatchTarget.Postfix);
-            Patching.AddPatch(typeof(LevelInfo), "SetLevel", YesSidequestPre, Patching.PatchTarget.Prefix);
-            Patching.AddPatch(typeof(LevelInfo), "SetLevel", YesSidequestPost, Patching.PatchTarget.Postfix);
+            Patching.AddPatch(typeof(LevelInfo), "SetLevel", Helpers.HM(YesSidequestPre).SetPriority(1000), Patching.PatchTarget.Prefix);
+            Patching.AddPatch(typeof(LevelInfo), "SetLevel", Helpers.HM(YesSidequestPost).SetPriority(-1000), Patching.PatchTarget.Postfix);
 
             Patching.AddPatch(typeof(MenuButtonLevel), "SetLevelData", LevelButtonPost, Patching.PatchTarget.Postfix);
             Patching.AddPatch(typeof(LevelInfo), "Localize", ReplaceEnvironment, Patching.PatchTarget.Postfix);

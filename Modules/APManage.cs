@@ -84,6 +84,12 @@ namespace NWArchipelago.Modules
             Levels
         }
 
+        internal enum Goal
+        {
+            AllBosses = 1,
+            TrueEnding,
+        }
+
         internal static class SlotData
         {
             public static List<LevelData> levels;
@@ -96,6 +102,9 @@ namespace NWArchipelago.Modules
 
             public static int knowledge;
             public static int execution;
+
+            public static Goal winCondition;
+            public static MedalEnum bossesCap;
         }
 
         internal enum ConnectStatus
@@ -194,6 +203,7 @@ namespace NWArchipelago.Modules
                 .Where(session.Locations.AllMissingLocations.Contains);
 
             NWArchipelago.CoroTask(session.Locations.CompleteLocationChecksAsync([.. ids]));
+            CheckWinCon();
         }
         internal static void SendGiftComplete(LevelData level) => SendLevelLocationFormatted(level, "{0} Gift");
 
@@ -230,6 +240,29 @@ namespace NWArchipelago.Modules
 
                 NWArchipelago.CoroTask(session.Locations.CompleteLocationChecksAsync(id));
                 NWArchipelago.Log.DebugMsg($"sent {loc} id {id}");
+            }
+            CheckWinCon();
+        }
+
+        static readonly string[] BOSSES = ["GRID_BOSS_YELLOW", "GRID_BOSS_GODSDEATHTEMPLE", "GRID_BOSS_RAPTURE"];
+        static void CheckWinCon()
+        {
+            // var gd = Singleton<Game>.Instance.GetGameData();
+
+            switch (SlotData.winCondition)
+            {
+                case Goal.AllBosses:
+                    {
+                        bool all = true;
+                        foreach (var l in BOSSES)
+                        {
+                            if (CommunityMedals.GetMedalIndex(l) < (int)SlotData.bossesCap)
+                                all = false;
+                        }
+                        if (all)
+                            session.SetGoalAchieved(); // WE Did it
+                        break;
+                    }
             }
         }
 
@@ -366,6 +399,10 @@ namespace NWArchipelago.Modules
 
             SlotData.knowledge = (int)variant["options"]["difficulty_knowledge"];
             SlotData.execution = (int)variant["options"]["difficulty_execution"];
+
+            SlotData.winCondition = (Goal)(int)variant["options"]["goal"];
+            if (SlotData.winCondition == Goal.AllBosses)
+                SlotData.bossesCap = (MedalEnum)((int)variant["options"]["bosses_goal_cap"] - 1);
 
             NWArchipelago.Log.DebugMsg("download/load logic");
 
