@@ -69,6 +69,8 @@ namespace NWArchipelago.Modules
         static bool Prevent() => false;
 
         static Color lowLight = new(0.8f, 0.8f, 0.8f);
+        static Color yellowLight = new Color32(222, 213, 169, 255);
+        static Color greenLight = new Color32(230, 255, 230, 255);
         static void SetButtonColor(Button button, Color c)
         {
             if (Logic.display.Value < Logic.LogicDisplay.Colors)
@@ -210,9 +212,9 @@ namespace NWArchipelago.Modules
             var template = __instance._missionMenuButtonTemplate.gameObject;
             template.SetActive(value: true);
 
+            bool doneLocked = false;
             for (int i = 0; i < missions.Length; ++i)
             {
-                bool doneLocked = false;
                 var mission = missions[i];
                 MenuButtonHolder b = Utils.InstantiateUI(template, "Mission Button", template.transform.parent).GetComponent<MenuButtonHolder>();
                 __instance.buttonsToLoad.Add(b);
@@ -234,11 +236,22 @@ namespace NWArchipelago.Modules
                         ]);
                     }
                     b.buttonTextRef.lineSpacing = -15;
+
                     if (n <= 0)
-                        SetButtonColor(b.ButtonRef, lowLight);
+                    {
+                        if (Logic.outOfLogic.Value && Logic.MissionChecks(mission, true) > 0)
+                            SetButtonColor(b.ButtonRef, yellowLight);
+                        else
+                            SetButtonColor(b.ButtonRef, lowLight);
+                    }
+                    else
+                        SetButtonColor(b.ButtonRef, greenLight);
                 }
                 else if (!doneLocked)
                 {
+                    doneLocked = true;
+                    b.SetLocked(val: true);
+
                     if (APManage.SlotData.unlockMethod == APManage.UnlockMethod.Missions)
                     {
                         b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
@@ -296,6 +309,8 @@ namespace NWArchipelago.Modules
 
                 if (!Logic.Level(level).CanAccessLevel())
                     b.SetLocked(true);
+                else
+                    b.SetLocked(false);
             }
 
             // navigation code from the original
@@ -381,12 +396,12 @@ namespace NWArchipelago.Modules
             if (checks <= 0)
             {
                 if (Logic.outOfLogic.Value && Logic.Level(ld, true).Checks() > 0)
-                    SetButtonColor(__instance._button, new Color32(222, 213, 169, 255));
+                    SetButtonColor(__instance._button, yellowLight);
                 else
                     SetButtonColor(__instance._button, lowLight);
             }
             else
-                SetButtonColor(__instance._button, new Color32(230, 255, 230, 255));
+                SetButtonColor(__instance._button, greenLight);
 
             if (APManage.SlotData.unlockMethod == APManage.UnlockMethod.Levels)
                 __instance.SetLocked(!Campaign.unlockedLevels.Contains(ld.levelIntegerID));
@@ -423,7 +438,7 @@ namespace NWArchipelago.Modules
             __instance._crystalLock.gameObject.SetActive(false);
 
             var medalEarned = GetMedalIndex(level.levelID);
-            var shift = medalEarned > (int)MedalEnum.Silver && true; //APManage.SlotData.medalCap >= MedalEnum.Dev;
+            var shift = medalEarned > (int)MedalEnum.Silver && APManage.SlotData.medalCap >= MedalEnum.Dev;
 
             Image aceImage = __instance._aceMedalBG.transform.parent.Find("Medal Icon").GetComponent<Image>();
             Image goldImage = __instance._goldMedalBG.transform.parent.Find("Medal Icon").GetComponent<Image>();

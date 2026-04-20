@@ -171,20 +171,20 @@ namespace NWArchipelago.Objects
                 .Count(x => x);
         }
 
-        internal static int MissionChecks(MissionData mission)
+        internal static int MissionChecks(MissionData mission, bool full = false)
         {
             if (SaveHandler.archiSaveData.neonRank < mission.medalsRequired)
                 return 0;
 
             return mission.levels
-                .Select(logicData.GetOrCreateValue)
+                .Select(x => Level(x, full))
                 .Sum(x => x.Checks());
         }
 
-        internal static int AllChecks()
+        internal static int AllChecks(bool full = false)
         {
             return APManage.SlotData.levels
-                .Select(logicData.GetOrCreateValue)
+                .Select(x => Level(x, full))
                 .Sum(x => x.Checks());
         }
 
