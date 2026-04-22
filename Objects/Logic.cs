@@ -20,6 +20,7 @@ namespace NWArchipelago.Objects
             None,
             TitleOnly,
             Colors,
+            ColorsDetailed,
             Full,
         }
 
@@ -33,6 +34,7 @@ namespace NWArchipelago.Objects
                 How the tracker should display available checks:
 
                 Full - Colors the buttons *and* shows the numeric count for checks
+                ColorsDetailed - Colors the level times and gift text if they're available.
                 Colors - Only colors the buttons. The full amount of checks is still shown on the title screen
                 TitleOnly - Only give the number on the title screen
                 None - Don't show any check indication at all
@@ -171,6 +173,8 @@ namespace NWArchipelago.Objects
                 .Count(x => x);
         }
 
+        internal Logic Full(bool full = true) => Level(level, full);
+
         internal static int MissionChecks(MissionData mission, bool full = false)
         {
             if (SaveHandler.archiSaveData.neonRank < mission.medalsRequired)
@@ -211,7 +215,6 @@ namespace NWArchipelago.Objects
                 return "NWArchipelago/CHECKS_ONE";
             return "NWArchipelago/CHECKS_SOME";
         }
-
 
 #pragma warning disable CS0649
         [Serializable]

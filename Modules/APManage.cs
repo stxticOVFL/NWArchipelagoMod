@@ -419,7 +419,7 @@ namespace NWArchipelago.Modules
                 {
                     NWArchipelago.Log.Warning("Could not load up to date logic. Loading the backup resource; this could be really outdated!");
 
-                    var resource = Resources.r.logic;
+                    var resource = Resources.logic.GetUTF8String();
                     load = false;
                     try
                     {
@@ -484,6 +484,7 @@ namespace NWArchipelago.Modules
                 if (lstats == null)
                     continue;
 
+                Campaign.checkComplete = true;
                 if (lstats.GetCompleted())
                     SendLevelComplete(level, lstats._timeBestMicroseconds);
                 if (lstats.HasCollectibleBeenFound())

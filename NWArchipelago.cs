@@ -44,7 +44,7 @@ namespace NWArchipelago
             {
                 NeonLite.NeonLite.LoadModules(MelonAssembly);
                 NeonLite.Modules.Anticheat.Register(MelonAssembly);
-                var abload = AssetBundle.LoadFromMemoryAsync(Resources.r.bundle);
+                var abload = AssetBundle.LoadFromStreamAsync(Resources.nwarchipelago.GetStream());
                 abload.completed += _ =>
                 {
                     bundle = abload.assetBundle;

@@ -27,13 +27,41 @@ namespace NWArchipelago.Modules
                 Helpers.HM(PreventPlayString).SetPriority(Priority.First), Patching.PatchTarget.Prefix);
             Patching.AddPatch(Helpers.Method(typeof(Game), "PlayLevel", [typeof(LevelData), typeof(bool), typeof(bool)]),
                 Helpers.HM(PreventPlayLD).SetPriority(Priority.First), Patching.PatchTarget.Prefix);
+
+            Patching.AddPatch(typeof(LevelStats), "GetCompleted", ForceComplete, Patching.PatchTarget.Prefix);
+
+            Patching.AddPatch(typeof(CommunityMedals), "GetMedalIndex", SetCheckComplete, Patching.PatchTarget.Prefix);
+            Type dtType = Type.GetType("NeonLite.Modules.UI.Deltatime, NeonLite");
+            Patching.AddPatch(dtType, "PreWin", SetCheckComplete, Patching.PatchTarget.Prefix);
+
+        }
+
+        internal static bool checkComplete = false;
+        internal static void SetCheckComplete() => checkComplete = true;
+        static bool ForceComplete(ref bool __result)
+        {
+            if (checkComplete)
+            {
+                checkComplete = false;
+                return true;
+            }
+            __result = true;
+            return false;
         }
 
         static bool MainObjectiveOverride(MenuResourcesDisplay __instance)
         {
             __instance.panelMainQuests.SetActive(false);
             __instance.panelOptionalQuests.SetActive(false);
-            __instance.rankDisplay.gameObject.SetActive(SlotData.unlockMethod == UnlockMethod.Ranks);
+            if (SlotData.unlockMethod == UnlockMethod.Ranks)
+            {
+                __instance.rankDisplay.gameObject.SetActive(true);
+                var rank = __instance.rankDisplay.textRank;
+                rank.enableAutoSizing = true;
+                rank.fontSizeMax = 130;
+                rank.fontSizeMin = 96;
+                rank.margin = new(0, -20, 0, -20);
+            }
 
             return false;
         }
@@ -125,7 +153,8 @@ namespace NWArchipelago.Modules
                     for (int l = 0; l < levelCount; ++l)
                     {
                         var level = SlotData.levels[lTotal++];
-                        Logic.Level(level).ranks = mission.medalsRequired;
+                        var logic = Logic.Level(level);
+                        logic.Full().ranks = logic.ranks = mission.medalsRequired;
                         mission.levels.Add(level);
                     }
 
@@ -182,8 +211,12 @@ namespace NWArchipelago.Modules
                     foreach (var level in mission.levels)
                     {
                         var lstats = GameDataManager.levelStats[level.levelID];
+
                         if (mission.medalsRequired <= SaveHandler.archiSaveData.neonRank)
+                        {
+                            lstats.RewardInsightXp(4);
                             lstats.SetForceUnlocked(true, false);
+                        }
                     }
                 }
 
@@ -200,8 +233,13 @@ namespace NWArchipelago.Modules
                     foreach (var level in mission.levels)
                     {
                         var lstats = GameDataManager.levelStats[level.levelID];
-                        lstats.SetForceUnlocked(unlockedLevels.Contains(level.levelIntegerID), false);
-                        Logic.Level(level);
+                        if (unlockedLevels.Contains(level.levelIntegerID))
+                        {
+                            lstats.RewardInsightXp(4);
+                            lstats.SetForceUnlocked(true, false);
+                        }
+
+                        Logic.Level(level).Full();
                     }
                 }
 

@@ -7,6 +7,7 @@ using I2.Loc;
 using MelonLoader;
 using NeonLite.Modules;
 using NWArchipelago.Objects;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -64,6 +65,8 @@ namespace NWArchipelago.Modules
                 Helpers.HM(HidePressStart).SetPriority(Priority.First), Patching.PatchTarget.Postfix);
 
             Patching.AddPatch(typeof(CommunityMedals), "PostSetLevel", Prevent, Patching.PatchTarget.Prefix);
+
+            Patching.AddPatch(typeof(MenuScreenLocation), "CreateActionButton", NoMission, Patching.PatchTarget.Prefix);
         }
 
         static bool Prevent() => false;
@@ -304,6 +307,8 @@ namespace NWArchipelago.Modules
 
                 __instance.buttonsToLoad.Add(b);
                 ____levelButtons.Add(b);
+                if (level.isSidequest)
+                    Campaign.checkComplete = true;
                 b.SetLevelData(level, i + 1);
                 b.onClickEvent.AddListener(() => setupnav.Invoke(__instance, []));
 
@@ -427,15 +432,53 @@ namespace NWArchipelago.Modules
 
         static void LevelInfoSetLevel(LevelInfo __instance, LevelData level)
         {
-            if (!level)
+            if (!level || !Logic.HasLogic(level))
                 return;
 
+            var isSidequest = level.isSidequest || level.levelID.Contains("SIDEQUEST");
+
+            // handle insight stuff
+            var insight = __instance._insightAniamtor.GetComponent<InsightInfo>();
+            Campaign.checkComplete = true;
+            var stats = GameDataManager.GetLevelStats(level.levelID);
+            var completed = stats.GetCompleted();
+            if (!completed)
+            {
+                __instance._bestTimeEmptyHolder.SetActive(true);
+                __instance._bestTimeHolder.SetActive(false);
+
+                if (isSidequest)
+                {
+                    __instance._crystalHolderFilled.SetActive(false);
+                    __instance._crystalFillBG.SetActive(false);
+                    __instance._crystalStateDescriptionText_Localized.SetKey("Interface/LEVELINFO_CRYSTAL_NOT_FOUND");
+                }
+            }
+
+            // remove any insight stuff from the actual visuals
+            insight.insightXpBar.gameObject.SetActive(false);
+            // insight.GetComponentInChildren<EvilEye_Icon>()?.gameObject?.SetActive(false);
+
+            var insighttext_loc = insight.transform.Find("InsightText").GetComponent<AxKLocalizedText>();
+            insighttext_loc.SetKey("Interface/INTERFACE_LABEL_005");
+            var textbuf = insighttext_loc.textMeshProUGUI;
+            textbuf.margin = new(80, 0, 15, -13);
+            textbuf.fontSize = 34;
+            textbuf.alignment = TMPro.TextAlignmentOptions.Bottom;
+            textbuf.fontStyle &= ~TMPro.FontStyles.Italic;
+
+            textbuf = __instance._crystalStateDescriptionText;
+            var margin = textbuf.margin;
+            margin.x = 3;
+            margin.w = -15;
+            textbuf.margin = margin;
+            __instance._crystalStateCaptionText.gameObject.SetActive(false);
+
             // handle GhostsEverywhere code
-            Image[] dotteds = __instance._insightAniamtor.GetComponentsInChildren<Image>();
+            Image[] dotteds = insight.GetComponentsInChildren<Image>();
             dotteds[0].enabled = !level.isSidequest;
             dotteds[1].enabled = !level.isSidequest;
 
-            __instance._crystalLock.gameObject.SetActive(false);
 
             var medalEarned = GetMedalIndex(level.levelID);
             var shift = medalEarned > (int)MedalEnum.Silver && APManage.SlotData.medalCap >= MedalEnum.Dev;
@@ -455,11 +498,64 @@ namespace NWArchipelago.Modules
             CommunityMedals.AdjustMaterial(goldImage);
             CommunityMedals.AdjustMaterial(silverImage);
 
-            if (level.isSidequest || !shift)
+            void SetTextColor(MedalEnum medal, TextMeshProUGUI text, GameObject bg = null, bool gift = false)
+            {
+                text.color = Color.white;
+                if (bg)
+                {
+                    bg.transform.SetAsFirstSibling();
+                    if (gift || isSidequest)
+                        bg.GetComponentsInChildren<Image>(true)
+                            .Do(x => x.color = Color.black);
+                    else
+                        bg.GetComponentsInChildren<Image>(true)
+                            .Do(x => x.color = new(1, 1, 1, 0.5f));
+                }
+
+
+
+                if (Logic.display.Value < Logic.LogicDisplay.ColorsDetailed ||
+                    ((int)medal <= medalEarned && !gift) ||
+                    (stats.HasCollectibleBeenFound() && gift))
+                    return;
+
+                var logic = Logic.Level(level);
+                if (gift ? logic.CanGift() : logic.CanGetMedal(medal))
+                    text.color = greenLight;
+                else if (Logic.outOfLogic.Value && gift ? logic.Full().CanGift() : logic.Full().CanGetMedal(medal))
+                    text.color = yellowLight;
+                else
+                {
+                    if (bg)
+                    {
+                        bg.GetComponentsInChildren<Image>(true)
+                            .Do(x => x.color = new(0, 0, 0, 0.6f));
+                        bg.gameObject.SetActive(true);
+                        bg.transform.SetAsLastSibling();
+                    }
+                    return;
+                }
+
+                Color.RGBToHSV(text.color, out var h, out var s, out var v);
+                s += 0.05f;
+                v += .1f;
+                if (v > 1)
+                    v = 1;
+                text.color = Color.HSVToRGB(h, s, v);
+            }
+
+            SetTextColor(MedalEnum.Bronze, __instance._crystalStateDescriptionText, __instance._crystalFillBG, !isSidequest);
+            SetTextColor(MedalEnum.Bronze, __instance._crystalStateCaptionText, gift: !isSidequest);
+
+            if (isSidequest || !shift)
             {
                 aceImage.sprite = Medals[(int)MedalEnum.Ace];
                 goldImage.sprite = Medals[(int)MedalEnum.Gold];
                 silverImage.sprite = Medals[(int)MedalEnum.Silver];
+
+                SetTextColor(MedalEnum.Silver, __instance._silverMedalTime, __instance._silverMedalBG);
+                SetTextColor(MedalEnum.Gold, __instance._goldMedalTime, __instance._goldMedalBG);
+                SetTextColor(MedalEnum.Ace, __instance._aceMedalTime, __instance._aceMedalBG);
 
                 return;
             }
@@ -483,6 +579,10 @@ namespace NWArchipelago.Modules
             __instance._silverMedalTime.text = (string)styleTime.Invoke(__instance, [
                 Helpers.FormatTime(communityTimes[(int)MedalEnum.Gold] / 1000, true, '.', true),
                 medalEarned >= (int)MedalEnum.Gold]);
+
+            SetTextColor(MedalEnum.Gold, __instance._silverMedalTime, __instance._silverMedalBG);
+            SetTextColor(MedalEnum.Ace, __instance._goldMedalTime, __instance._goldMedalBG);
+            SetTextColor(MedalEnum.Dev, __instance._aceMedalTime, __instance._aceMedalBG);
         }
 
 
@@ -527,5 +627,7 @@ namespace NWArchipelago.Modules
             if (__instance._pressToPlayPrompt && __instance._pressToPlayPrompt.gameObject.activeSelf)
                 __instance._pressToPlayPrompt.gameObject.SetActive(Logic.Level(level).CanAccessLevel());
         }
+
+        static bool NoMission(HubAction hubAction) => hubAction.ID != "PORTAL_CONTINUE_MISSION";
     }
 }

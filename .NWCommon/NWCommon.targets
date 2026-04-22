@@ -1,8 +1,8 @@
 <Project>
     <!-- you shouldn't have to look in here unless you're working on NWCommon itself -->
 
-    <Import Project="NWConfig.props" Condition="Exists('NWConfig.props')" />
-    <Import Project="NWConfig.props.base" Condition="!Exists('NWConfig.props')" />
+    <Import Project="../NWConfig.props" Condition="Exists('../NWConfig.props')" />
+    <Import Project="../NWConfig.props.base" Condition="!Exists('../NWConfig.props')" />
 
     <PropertyGroup>
         <NWDirectory>$(NWDirectory.Trim())</NWDirectory>
@@ -45,10 +45,25 @@
     </PropertyGroup>
 
 
-    <!-- For projects that use Unity they usually don't want to compile alongside the mod -->
     <ItemGroup>
+        <!-- For projects that use Unity they usually don't want to compile alongside the mod -->
         <Compile Remove="UnityProject/**/*.cs" />
         <None Remove="UnityProject/**/*" />
+
+        <Compile Remove=".NWCommon/**/*.cs"/>
+        <None Remove=".NWCommon/**/*"/>
+
+        <Compile Remove="Resources/**/*.cs" />
+        <None Remove="Resources/**/*" />
+        <EmbeddedResource Include="Resources/**/*" Exclude="@(EmbeddedResource)" />
+
+        <CompilerVisibleProperty Include="RootNamespace"/>
+        <CompilerVisibleProperty Include="MSBuildProjectDirectory"/>
+        <CompilerVisibleItemMetadata Include="AdditionalFiles" MetadataName="SourceItemGroup"/>
+
+        <ProjectReference Include=".NWCommon/NWCGenerators.csproj"
+                OutputItemType="Analyzer"
+                ReferenceOutputAssembly="false" />
     </ItemGroup>
     <!-- HOWEVER if we EXPLICITLY define UnityScripts support... -->
     <ItemGroup Condition="'$(NWUnityScripts)' != ''">
@@ -69,15 +84,17 @@
             Text="NWXbox is not set! Assuming Steam build."
             Condition="'$(NWXbox)' == ''"
         />
+
+        <ItemGroup>
+            <AdditionalFiles Include="@(EmbeddedResource)" SourceItemGroup="NWCResource"
+                Condition="$([System.String]::new('%(RelativeDir)').StartsWith('Resources'))" />
+        </ItemGroup>
     </Target>
 
     <!-- Basic references -->
     <ItemGroup>
         <!-- add all system references here -->
-        <!-- <Reference Include="$(NWDirectory)/MelonLoader/Managed/System.*" Private="false" /> -->
         <Reference Include="$(NWManaged)/System.*" Private="false" />
-        <!-- <Reference Include="$(NWDirectory)/MelonLoader/Managed/mscorlib.dll" Private="false" /> -->
-        <!-- <Reference Include="$(NWDirectory)/MelonLoader/Managed/netstandard.dll" Private="false" /> -->
         <Reference Include="$(NWManaged)/mscorlib.dll" Private="false" />
         <Reference Include="$(NWManaged)/netstandard.dll" Private="false" />
 
