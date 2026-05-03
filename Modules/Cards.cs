@@ -57,6 +57,9 @@ namespace NWArchipelago.Modules
             Patching.AddPatch(typeof(MechController), "DoCardPickup", CardShowcaseForce, Patching.PatchTarget.Prefix);
 
             Patching.AddPatch(typeof(MechController), "GetCardShowcaseCallback", ForceStaging, Patching.PatchTarget.Postfix);
+
+            Patching.AddPatch(typeof(MechController), "GetCanPickupAmmo", CheckAmmo, Patching.PatchTarget.Postfix);
+            Patching.AddPatch(typeof(MechController), "OnCollectAmmo", DirectAmmo, Patching.PatchTarget.Prefix);
         }
 
         internal static void OnLevelLoad(LevelData _)
@@ -316,6 +319,38 @@ namespace NWArchipelago.Modules
                 NeonLite.Modules.Optimization.SuperRestart.ForceStagingNextRestart();
                 __instance.Die(true);
             };
+        }
+
+
+        static readonly string[] NONAMMO = [
+            "KATANA",
+            "FISTS",
+            "KATANA_MIRACLE",
+            "RAPTURE"
+        ];
+
+        static void CheckAmmo(MechController __instance, ref bool __result)
+        {
+            if (!__result)
+                return;
+
+            __result = __instance.GetCurrentHand().Take(__instance.GetPlayerCardDeck().GetHandCount())
+                .Any(x => !NONAMMO.Contains(x.data.cardID) && fires.Contains(x.data.cardID));
+        }
+        static bool DirectAmmo(MechController __instance)
+        {
+            var cards = __instance.GetCurrentHand().Take(__instance.GetPlayerCardDeck().GetHandCount()).ToArray();
+
+            var card = cards
+                .FirstOrDefault(x => !NONAMMO.Contains(x.data.cardID) && fires.Contains(x.data.cardID));
+            if (card == null)
+                return false;
+
+            card.currentAmmo += card.data.clipSize;
+            RM.ui.OnCollectAmmo(card);
+            RM.ui.UpdateCardAmmo(card, card == cards.First());
+
+            return false;
         }
     }
 }

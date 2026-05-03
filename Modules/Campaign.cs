@@ -53,6 +53,7 @@ namespace NWArchipelago.Modules
         {
             __instance.panelMainQuests.SetActive(false);
             __instance.panelOptionalQuests.SetActive(false);
+
             if (SlotData.unlockMethod == UnlockMethod.Ranks)
             {
                 __instance.rankDisplay.gameObject.SetActive(true);
@@ -62,6 +63,8 @@ namespace NWArchipelago.Modules
                 rank.fontSizeMin = 96;
                 rank.margin = new(0, -20, 0, -20);
             }
+            else
+                __instance.rankDisplay.gameObject.SetActive(false);
 
             return false;
         }

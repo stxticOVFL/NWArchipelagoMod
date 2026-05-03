@@ -122,10 +122,6 @@ namespace NWArchipelago.Modules
             NWArchipelago.mainContext.Send(s => OnStatusChanged?.Invoke((ConnectStatus)s), status);
         }
 
-        const ItemFlags itemRank = ItemFlags.Advancement;
-        const ItemFlags itemCard = ItemFlags.Advancement | ItemFlags.NeverExclude;
-        const ItemFlags itemMiracle = ItemFlags.None;
-
         internal static int itemIndex = 0;
         internal static bool doCampaignCheck = true;
         internal static void ItemRecieved(ReceivedItemsHelper helper)
@@ -147,24 +143,23 @@ namespace NWArchipelago.Modules
 
         internal static void ParseItem(ItemInfo item)
         {
-            if (item.ItemId >= 600)
-            {
-                Campaign.unlockedLevels.Add((int)(item.ItemId - 600));
-                return;
-            }
+            var type = item.ItemId / 100;
 
-            switch (item.Flags)
+            switch (type)
             {
-                case itemRank:
-                    SaveHandler.archiSaveData.neonRank++;
-                    break;
-                case itemCard:
+                case 5: // cards
                     if (!Cards.ParseCard(item.ItemName))
                         NWArchipelago.Log.Warning($"Unknown card-like item {item.ItemName}");
-                    break;
-                case itemMiracle:
-                    Miracle.miracleCount++;
-                    break;
+                    return;
+                case 4: // progression
+                    SaveHandler.archiSaveData.neonRank++;
+                    return;
+                case 6: // levels
+                case 7:
+                    Campaign.unlockedLevels.Add((int)(item.ItemId - 600));
+                    return;
+                case 8: // misc
+                    return;
             }
         }
 
@@ -441,7 +436,7 @@ namespace NWArchipelago.Modules
                 Campaign.MakeCampaign();
 
                 NWArchipelago.Log.DebugMsg("save redir");
-                Anticheat.EnableSaveRedirection(Path.Combine("Archipelago", ((RoomInfoPacket)info).SeedName), true);
+                Anticheat.EnableSaveRedirection(Path.Combine("Archipelago", ((RoomInfoPacket)info).SeedName, Settings.slotname.Value), true);
                 SaveHandler.allowed = true;
                 var currRank = SaveHandler.archiSaveData.neonRank;
                 GameDataManager.LoadGame(null);
