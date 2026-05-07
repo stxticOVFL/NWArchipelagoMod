@@ -166,24 +166,23 @@ namespace NWArchipelago.Modules
             }
             else
             {
-                var sq = gd.GetCampaign("C_SIDEQUESTS");
-                campaign.missionData.Add(sq.missionData.First(x => x.missionID.Contains("RED")));
-                campaign.missionData.Add(sq.missionData.First(x => x.missionID.Contains("VIOLET")));
-                campaign.missionData.Add(sq.missionData.First(x => x.missionID.Contains("YELLOW")));
+                if (SlotData.sidequests)
+                {
+                    var sq = gd.GetCampaign("C_SIDEQUESTS");
+                    campaign.missionData.Add(sq.missionData.First(x => x.missionID.Contains("RED")));
+                    campaign.missionData.Add(sq.missionData.First(x => x.missionID.Contains("VIOLET")));
+                    campaign.missionData.Add(sq.missionData.First(x => x.missionID.Contains("YELLOW")));
+                }
+
                 gd.campaigns.RemoveAll(x => x.campaignID == "C_SIDEQUESTS");
 
                 int intID = 0;
                 foreach (var mission in campaign.missionData)
                 {
                     mission.missionDialogues.Clear();
-                    mission.hubContentData = hcd;
-                    mission.medalsRequired = 0;
-
-                    if (mission.missionType == MissionData.MissionType.SideQuest)
-                        mission.missionDisplayName = "NWArchipelago/" + mission.missionID;
-
                     mission.missionType = MissionData.MissionType.MainQuest;
                     mission.hubContentData = hcd;
+                    mission.medalsRequired = 0;
 
                     foreach (var level in mission.levels)
                         level.levelIntegerID = intID++;

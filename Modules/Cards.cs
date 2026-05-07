@@ -235,8 +235,15 @@ namespace NWArchipelago.Modules
 
         static void EnsureGiftsSpawn(CardPickupSpawner __instance, MethodBase __originalMethod, GameObject ____spawnedObject)
         {
-            if (__instance.holderType != CardPickupSpawner.Type.Collectible || ____spawnedObject)
+            if (__instance.holderType != CardPickupSpawner.Type.Collectible)
                 return;
+
+            if (____spawnedObject)
+            {
+                if (!APManage.SlotData.gifts)
+                    UnityEngine.Object.Destroy(____spawnedObject);
+                return;
+            }
 
             var lvl = Singleton<Game>.Instance.GetCurrentLevel();
             if (!lvl || lvl.collectibleGiftForCharacter == null)
@@ -269,8 +276,15 @@ namespace NWArchipelago.Modules
 
         static void EnsureDarkInsight(ObjectSpawner.Type objType, GameObject __result, MethodBase __originalMethod, object[] __args)
         {
-            if (objType != ObjectSpawner.Type.DarkInsight || __result)
+            if (objType != ObjectSpawner.Type.DarkInsight)
                 return;
+
+            if (__result)
+            {
+                if (!APManage.SlotData.gifts)
+                    UnityEngine.Object.Destroy(__result);
+                return;
+            }
 
             var lvl = Singleton<Game>.Instance.GetCurrentLevel();
             if (!lvl || lvl.collectibleGiftForCharacter == null)

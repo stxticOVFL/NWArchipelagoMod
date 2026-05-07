@@ -99,6 +99,8 @@ namespace NWArchipelago.Modules
             public static UnlockMethod unlockMethod;
 
             public static MedalEnum medalCap;
+            public static bool gifts = true;
+            public static bool sidequests = true;
 
             public static int knowledge;
             public static int execution;
@@ -380,15 +382,21 @@ namespace NWArchipelago.Modules
             SlotData.missionReqs = [.. (variant["mission_costs"] as ProxyArray).Select(x => (int)x)];
             SlotData.neonRanks = SlotData.missionReqs.Last();
 
-            SlotData.unlockMethod = (UnlockMethod)(int)variant["options"]["unlock_method"];
-            SlotData.medalCap = (MedalEnum)((int)variant["options"]["medal_cap"] - 1);
+            var options = variant["options"] as ProxyObject;
+            if (options.Keys.Contains("gifts"))
+                SlotData.gifts = options["gifts"];
+            if (options.Keys.Contains("sidequests"))
+                SlotData.sidequests = options["sidequests"];
 
-            SlotData.knowledge = (int)variant["options"]["difficulty_knowledge"];
-            SlotData.execution = (int)variant["options"]["difficulty_execution"];
+            SlotData.unlockMethod = (UnlockMethod)(int)options["unlock_method"];
+            SlotData.medalCap = (MedalEnum)((int)options["medal_cap"] - 1);
 
-            SlotData.winCondition = (Goal)(int)variant["options"]["goal"];
+            SlotData.knowledge = (int)options["difficulty_knowledge"];
+            SlotData.execution = (int)options["difficulty_execution"];
+
+            SlotData.winCondition = (Goal)(int)options["goal"];
             if (SlotData.winCondition == Goal.AllBosses)
-                SlotData.bossesCap = (MedalEnum)((int)variant["options"]["bosses_goal_cap"] - 1);
+                SlotData.bossesCap = (MedalEnum)((int)options["bosses_goal_cap"] - 1);
 
             NWArchipelago.Log.DebugMsg("download/load logic");
 

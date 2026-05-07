@@ -512,17 +512,22 @@ namespace NWArchipelago.Modules
                             .Do(x => x.color = new(1, 1, 1, 0.5f));
                 }
 
-
-
                 if (Logic.display.Value < Logic.LogicDisplay.ColorsDetailed ||
                     ((int)medal <= medalEarned && !gift) ||
                     (stats.HasCollectibleBeenFound() && gift))
                     return;
 
                 var logic = Logic.Level(level);
-                if (gift ? logic.CanGift() : logic.CanGetMedal(medal))
+                bool Check(Logic logic) => gift ? logic.CanGift() : logic.CanGetMedal(medal);
+
+                // NWArchipelago.Log.DebugMsg(Check(logic));
+                // NWArchipelago.Log.DebugMsg(Check(logic.Full()));
+                // NWArchipelago.Log.DebugMsg(Logic.outOfLogic.Value);
+                // NWArchipelago.Log.DebugMsg(Logic.outOfLogic.Value && Check(logic.Full()));
+
+                if (Check(logic))
                     text.color = greenLight;
-                else if (Logic.outOfLogic.Value && gift ? logic.Full().CanGift() : logic.Full().CanGetMedal(medal))
+                else if (Logic.outOfLogic.Value && Check(logic.Full()))
                     text.color = yellowLight;
                 else
                 {
@@ -544,7 +549,7 @@ namespace NWArchipelago.Modules
                 text.color = Color.HSVToRGB(h, s, v);
             }
 
-            SetTextColor(MedalEnum.Bronze, __instance._crystalStateDescriptionText, __instance._crystalFillBG, !isSidequest);
+            SetTextColor(MedalEnum.Bronze, __instance._crystalStateDescriptionText, __instance._crystalFillBG, gift: !isSidequest);
             SetTextColor(MedalEnum.Bronze, __instance._crystalStateCaptionText, gift: !isSidequest);
 
             if (isSidequest || !shift)

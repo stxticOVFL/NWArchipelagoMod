@@ -125,6 +125,8 @@ namespace NWArchipelago.Objects
         {
             if (SaveHandler.archiSaveData.neonRank < ranks)
                 return false;
+            if (level.isSidequest && !APManage.SlotData.sidequests)
+                return false;
             if (APManage.SlotData.unlockMethod == APManage.UnlockMethod.Levels
                 && !Campaign.unlockedLevels.Contains(level.levelIntegerID))
                 return false; // we're using level unlocks and yet we don't have it :broken_heart:
@@ -146,7 +148,7 @@ namespace NWArchipelago.Objects
         }
         internal bool CanGift()
         {
-            if (!CanAccessLevel())
+            if (!CanAccessLevel() || !APManage.SlotData.gifts)
                 return false;
             if (level.isSidequest || GIFTLESS.Contains(level.levelID))
                 return false; // these don't have one
