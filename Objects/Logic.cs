@@ -222,6 +222,28 @@ namespace NWArchipelago.Objects
             return "NWArchipelago/CHECKS_SOME";
         }
 
+        internal static bool IsLevelDataHinted(LevelData levelData)
+        {
+            var levelName = LocalizationManager.GetTranslation(levelData.GetLevelDisplayName(), overrideLanguage: "English");
+
+            List<string> medals = ["Bronze", "Silver", "Gold", "Ace", "Dev"];
+            List<string> nameChecks = [
+                $"{levelName} Gift",
+                $"{levelName} Completion",
+            ];
+            medals.ForEach(medal => nameChecks.Add($"{levelName} {medal} Completion"));
+
+            return nameChecks.Any(
+                name => APManage.IsHinted(
+                    APManage.session.Locations.GetLocationIdFromName(
+                        APManage.session.ConnectionInfo.Game,
+                        name
+                    ),
+                    false
+                )
+            );
+        }
+
         Logic Clear() {
             ranks = 0;
             perMedalLogic.Clear();

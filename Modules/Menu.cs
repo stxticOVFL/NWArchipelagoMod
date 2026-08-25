@@ -68,7 +68,30 @@ namespace NWArchipelago.Modules
 
             Patching.AddPatch(typeof(MenuScreenLocation), "CreateActionButton", NoMission, Patching.PatchTarget.Prefix);
 
+            Patching.AddPatch(typeof(GameData), "GetMission", GetHintMissionOverride, Patching.PatchTarget.Prefix);
+
             APManage.OnStatusChanged += ForceTitle;
+        }
+
+        // Add the hinted levels dynamically when we open the hint mission
+        // TODO: When playing a hint level from the Hint Mission and returning to the archive it will
+        // not put you back into the Hint Mission but instead where the level is actually in (e.g. Mission 3)
+        // Not sure where to hook that and how to fix it yet
+        static bool GetHintMissionOverride(string missionID, ref MissionData __result)
+        {
+            if (missionID == "M_ARCHI_HINTED")
+            {
+                __result = new MissionData
+                {
+                    missionID = "M_ARCHI_HINTED",
+                    name = "Hinted Missions"
+                };
+                __result.levels.AddRange(APManage.SlotData.levels.FindAll(Logic.IsLevelDataHinted));
+
+                return false;
+            }
+
+            return true;
         }
 
         static bool Prevent() => false;
@@ -76,6 +99,7 @@ namespace NWArchipelago.Modules
         static Color lowLight = new(0.8f, 0.8f, 0.8f);
         static Color yellowLight = new Color32(222, 213, 169, 255);
         static Color greenLight = new Color32(230, 255, 230, 255);
+        static Color blueLight = new Color32(130, 190, 255, 255);
         static void SetButtonColor(Button button, Color c)
         {
             if (Logic.display.Value < Logic.LogicDisplay.Colors)
@@ -228,14 +252,32 @@ namespace NWArchipelago.Modules
             template.SetActive(value: true);
 
             bool doneLocked = false;
-            for (int i = 0; i < missions.Length; ++i)
+            // Starting the loop from -1 and hijacking that as ID 0 for the Hinted Missions
+            for (int i = -1; i < missions.Length; ++i)
             {
-                var mission = missions[i];
+                var mission = missions[Math.Max(0, i)];
+                bool isHintMission = false;
+                if (i == -1)
+                {
+                    isHintMission = true;
+                    mission = new MissionData
+                    {
+                        missionID = "M_ARCHI_HINTED",
+                        name = "Hinted Missions"
+                    };
+
+                    foreach (var m in missions)
+                    {
+                        mission.levels.AddRange(m.levels.FindAll(Logic.IsLevelDataHinted));
+                    }
+                }
                 MenuButtonHolder b = Utils.InstantiateUI(template, "Mission Button", template.transform.parent).GetComponent<MenuButtonHolder>();
                 __instance.buttonsToLoad.Add(b);
                 ____missionButtons.Add(b);
                 b.SetMissionData(mission, i + 1);
                 b.onClickEvent.AddListener(() => __instance._firstNavElement = b.gameObject);
+
+                var missionHasHints = mission.levels.Any(Logic.IsLevelDataHinted);
 
                 if (i <= GameDataManager.campaignStats[Singleton<Game>.Instance.GetGameData().GetCurrentCampaign().campaignID].GetFarthestMission() || GS.unlockLevels)
                 {
@@ -243,12 +285,38 @@ namespace NWArchipelago.Modules
                     var chks = Logic.ChecksString(out var n, mission: mission);
                     if (APManage.SlotData.unlockMethod != APManage.UnlockMethod.Levels)
                     {
-                        b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
-                            new AxKReplacementPair("{MN}", i + 1),
-                            new AxKReplacementPair("{CHK}", chks),
-                            new AxKReplacementPair("{CN}", n),
-                            new AxKReplacementPair("{MRK}", ""),
-                        ]);
+                        if (isHintMission)
+                        {
+                            b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
+                                new AxKReplacementPair("{MN}", "Hints", false),
+                                new AxKReplacementPair("{CHK}", chks),
+                                new AxKReplacementPair("{CN}", n),
+                                new AxKReplacementPair("{MRK}", ""),
+                            ]);
+                        }
+                        else
+                        {
+                            if (missionHasHints)
+                            {
+                                b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
+                                    new AxKReplacementPair("{MN}", i + 1),
+                                    new AxKReplacementPair("{CHK}", chks),
+                                    // TODO: This needs a locale.csv update.
+                                    // Do we even need this with the Hint Mission and / or blue button background?
+                                    new AxKReplacementPair("{CN}", $"Hinted - {n}", false),
+                                    new AxKReplacementPair("{MRK}", ""),
+                                ]);
+                            }
+                            else
+                            {
+                                b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
+                                    new AxKReplacementPair("{MN}", i + 1),
+                                    new AxKReplacementPair("{CHK}", chks),
+                                    new AxKReplacementPair("{CN}", n),
+                                    new AxKReplacementPair("{MRK}", ""),
+                                ]);
+                            }
+                        }
                     }
                     b.buttonTextRef.lineSpacing = -15;
 
@@ -261,6 +329,11 @@ namespace NWArchipelago.Modules
                     }
                     else
                         SetButtonColor(b.ButtonRef, greenLight);
+
+                    if (missionHasHints)
+                    {
+                        SetButtonColor(b.ButtonRef, blueLight);
+                    }
                 }
                 else if (!doneLocked)
                 {
@@ -392,13 +465,26 @@ namespace NWArchipelago.Modules
             {
                 var leveldisplay = showKey.Value ? "NWArchipelago/LEVEL_NAME_WKEY" : ld.GetLevelDisplayName();
 
-                __instance._textLevelName_Localized.SetKey("NWArchipelago/LEVEL_NAME", [
-                    new AxKReplacementPair("{OG?}", leveldisplay),
-                    new AxKReplacementPair("{KEY}", Campaign.levelKey[ld.levelID], false),
-                    new AxKReplacementPair("{OG}", ld.GetLevelDisplayName()),
-                    new AxKReplacementPair("{CHK}", s),
-                    new AxKReplacementPair("{CN}", checks),
-                ]);
+                if (Logic.IsLevelDataHinted(ld))
+                {
+                    __instance._textLevelName_Localized.SetKey("NWArchipelago/LEVEL_NAME", [
+                        new AxKReplacementPair("{OG?}", leveldisplay),
+                        new AxKReplacementPair("{KEY}", Campaign.levelKey[ld.levelID], false),
+                        new AxKReplacementPair("{OG}", ld.GetLevelDisplayName()),
+                        new AxKReplacementPair("{CHK}", s),
+                        new AxKReplacementPair("{CN}", $"Hinted - {checks}", false),
+                    ]);
+                }
+                else
+                {
+                    __instance._textLevelName_Localized.SetKey("NWArchipelago/LEVEL_NAME", [
+                        new AxKReplacementPair("{OG?}", leveldisplay),
+                        new AxKReplacementPair("{KEY}", Campaign.levelKey[ld.levelID], false),
+                        new AxKReplacementPair("{OG}", ld.GetLevelDisplayName()),
+                        new AxKReplacementPair("{CHK}", s),
+                        new AxKReplacementPair("{CN}", checks),
+                    ]);
+                }
             }
             else if (showKey.Value)
             {
@@ -419,6 +505,11 @@ namespace NWArchipelago.Modules
             }
             else
                 SetButtonColor(__instance._button, greenLight);
+
+            if (Logic.IsLevelDataHinted(ld))
+            {
+                SetButtonColor(__instance._button, blueLight);
+            }
 
             if (APManage.SlotData.unlockMethod == APManage.UnlockMethod.Levels)
                 __instance.SetLocked(!Campaign.unlockedLevels.Contains(ld.levelIntegerID));

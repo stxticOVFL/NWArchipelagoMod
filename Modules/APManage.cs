@@ -77,6 +77,8 @@ namespace NWArchipelago.Modules
         internal static ArchipelagoSession session;
         internal static bool deathlink;
 
+        internal static Hint[] hints;
+
         internal enum UnlockMethod
         {
             Ranks = 1,
@@ -517,6 +519,9 @@ namespace NWArchipelago.Modules
             if (!doCampaignCheck)
                 doCampaignCheck = true;
 
+            // Track Hints
+            session.DataStorage.TrackHints(OnHintsReceived);
+
             NWArchipelago.Log.DebugMsg("set status");
             SetConnectStatus(ConnectStatus.Connected);
             OnLevelLoad(LoadManager.currentLevel);
@@ -538,6 +543,24 @@ namespace NWArchipelago.Modules
             NWArchipelago.Log.DebugMsg("done!");
 
             Campaign.HandleSaveCData(true);
+        }
+
+        internal static void OnHintsReceived(Hint[] hint)
+        {
+            NWArchipelago.Log.DebugMsg("Received hints!");
+
+            hints = hint;
+        }
+
+        public static bool IsHinted(long locationId, bool hinted)
+        {
+            return hinted ||
+                hints.Any(
+                    hint =>
+                        hint.FindingPlayer == session.Players.ActivePlayer.Slot &&
+                        hint.LocationId == locationId &&
+                        !hint.Found
+                );
         }
 
         internal static void OnCollectible(LevelStats __instance)
