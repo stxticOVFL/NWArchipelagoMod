@@ -328,7 +328,8 @@ namespace NWArchipelago.Modules
                             b.SetLocked(val: true);
 
                             b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
-                                new AxKReplacementPair("{MN}", "Hints", false),
+                                new AxKReplacementPair("{PREFIX}", "Hinted Levels", false),
+                                new AxKReplacementPair("{MN}", ""),
                                 new AxKReplacementPair("{CHK}", ""),
                                 new AxKReplacementPair("{MRK}", "No Hinted Levels Playable", false),
                             ]);
@@ -336,32 +337,48 @@ namespace NWArchipelago.Modules
                         else
                         {
                             b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
-                                new AxKReplacementPair("{MN}", "Hints", false),
+                                new AxKReplacementPair("{PREFIX}", "Hinted Levels", false),
+                                new AxKReplacementPair("{MN}", ""),
                                 new AxKReplacementPair("{CHK}", chks),
+                                // TODO: Localization, plus "level" vs. "levels"
                                 new AxKReplacementPair("{CN}", $"{mission.levels.Count()} levels - {n}", false),
                                 new AxKReplacementPair("{MRK}", ""),
                             ]);
                         }
                     }
-
-                    // TODO: In "Levels Unlock" mode the a mission that has hints should also have the small text above
-                    if (APManage.SlotData.unlockMethod != APManage.UnlockMethod.Levels)
+                    else
                     {
-                        if (missionHasHints && !isHintMission)
+                        // TODO: In "Levels Unlock" mode the a mission that has hints should also have the small text above
+                        if (APManage.SlotData.unlockMethod != APManage.UnlockMethod.Levels)
                         {
-                            b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
-                                new AxKReplacementPair("{MN}", i),
-                                new AxKReplacementPair("{CHK}", chks),
-                                // TODO: This needs a locale.csv update.
-                                // Do we even need this with the Hint Mission and / or blue button background?
-                                new AxKReplacementPair("{CN}", $"Hinted - {n}", false),
-                                new AxKReplacementPair("{MRK}", ""),
-                            ]);
+                            if (missionHasHints)
+                            {
+                                b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
+                                    new AxKReplacementPair("{PREFIX}", "MISSION_PREFIX"),
+                                    new AxKReplacementPair("{MN}", i),
+                                    new AxKReplacementPair("{CHK}", chks),
+                                    // TODO: This needs a locale.csv update.
+                                    // Do we even need this with the Hint Mission and / or blue button background?
+                                    new AxKReplacementPair("{CN}", $"Hinted - {n}", false),
+                                    new AxKReplacementPair("{MRK}", ""),
+                                ]);
+                            }
+                            else
+                            {
+                                b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
+                                    new AxKReplacementPair("{PREFIX}", "MISSION_PREFIX"),
+                                    new AxKReplacementPair("{MN}", i),
+                                    new AxKReplacementPair("{CHK}", chks),
+                                    new AxKReplacementPair("{CN}", n),
+                                    new AxKReplacementPair("{MRK}", ""),
+                                ]);
+                            }
                         }
                         else
                         {
                             b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
-                                new AxKReplacementPair("{MN}", i),
+                                new AxKReplacementPair("{PREFIX}", mission.missionDisplayName),
+                                new AxKReplacementPair("{MN}", ""),
                                 new AxKReplacementPair("{CHK}", chks),
                                 new AxKReplacementPair("{CN}", n),
                                 new AxKReplacementPair("{MRK}", ""),
