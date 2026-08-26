@@ -316,6 +316,9 @@ namespace NWArchipelago.Modules
                             b.SetLocked(val: true);
 
                             b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
+                                // TODO: Needs localization update
+                                // MISSION_PREFIX,Mission ,,,,,,,,Wyczyść ,,,,,,
+                                // MISSION_NAME,<size=80%>{MRK}{CHK}</size><br>{PREFIX}{MN},,,,,,,,Wyczyść,,,,,,
                                 new AxKReplacementPair("{PREFIX}", "Hinted Levels", false),
                                 new AxKReplacementPair("{MN}", ""),
                                 new AxKReplacementPair("{CHK}", ""),
