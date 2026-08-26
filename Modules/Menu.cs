@@ -78,10 +78,21 @@ namespace NWArchipelago.Modules
         internal static string currentMissionID = "";
 
         // Listen to the SelectMission method and save the current mission ID to a variable
-        static void SelectMissionOverride(string missionID)
+        static bool SelectMissionOverride(string missionID)
         {
             NWArchipelago.Log.DebugMsg($"Selected mission: {missionID}");
             currentMissionID = missionID;
+
+            // If we're in the hint mission but we don't have any more hinted levels available / playable
+            if (missionID == HINTED_MISSION_ID && Logic.AllHinted(andAvailable: true) <= 0)
+            {
+                // Then send the player back into the mission list menu
+                Singleton<MainMenu>.Instance.SelectCampaign(Campaign.campaign.campaignID);
+
+                return false;
+            }
+
+            return true;
         }
 
         // Override the level information when we are in the hinted mission
@@ -89,8 +100,13 @@ namespace NWArchipelago.Modules
         {
             if (currentMissionID == HINTED_MISSION_ID && __result != null)
             {
+                // Check if there's any hinted missions
+                // If not, then don't override the result data
+                // if (Logic.AllHinted() > 0)
+                // {
                 __result.mission = 0;
                 __result.missionID = currentMissionID;
+                // }
             }
         }
 
@@ -297,52 +313,52 @@ namespace NWArchipelago.Modules
                 {
                     b.SetLocked(val: false);
                     var chks = Logic.ChecksString(out var n, mission: mission);
-                    if (APManage.SlotData.unlockMethod != APManage.UnlockMethod.Levels)
-                    {
-                        if (isHintMission)
-                        {
-                            if (mission.levels.Count() == 0)
-                            {
-                                b.SetLocked(val: true);
 
-                                b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
-                                    new AxKReplacementPair("{MN}", "Hints", false),
-                                    new AxKReplacementPair("{CHK}", ""),
-                                    new AxKReplacementPair("{MRK}", "No Hinted Levels Playable", false),
-                                ]);
-                            }
-                            else
-                            {
-                                b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
-                                    new AxKReplacementPair("{MN}", "Hints", false),
-                                    new AxKReplacementPair("{CHK}", chks),
-                                    new AxKReplacementPair("{CN}", $"{mission.levels.Count()} levels - {n}", false),
-                                    new AxKReplacementPair("{MRK}", ""),
-                                ]);
-                            }
+                    if (isHintMission)
+                    {
+                        if (mission.levels.Count() == 0)
+                        {
+                            b.SetLocked(val: true);
+
+                            b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
+                                new AxKReplacementPair("{MN}", "Hints", false),
+                                new AxKReplacementPair("{CHK}", ""),
+                                new AxKReplacementPair("{MRK}", "No Hinted Levels Playable", false),
+                            ]);
                         }
                         else
                         {
-                            if (missionHasHints)
-                            {
-                                b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
-                                    new AxKReplacementPair("{MN}", i),
-                                    new AxKReplacementPair("{CHK}", chks),
-                                    // TODO: This needs a locale.csv update.
-                                    // Do we even need this with the Hint Mission and / or blue button background?
-                                    new AxKReplacementPair("{CN}", $"Hinted - {n}", false),
-                                    new AxKReplacementPair("{MRK}", ""),
-                                ]);
-                            }
-                            else
-                            {
-                                b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
-                                    new AxKReplacementPair("{MN}", i),
-                                    new AxKReplacementPair("{CHK}", chks),
-                                    new AxKReplacementPair("{CN}", n),
-                                    new AxKReplacementPair("{MRK}", ""),
-                                ]);
-                            }
+                            b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
+                                new AxKReplacementPair("{MN}", "Hints", false),
+                                new AxKReplacementPair("{CHK}", chks),
+                                new AxKReplacementPair("{CN}", $"{mission.levels.Count()} levels - {n}", false),
+                                new AxKReplacementPair("{MRK}", ""),
+                            ]);
+                        }
+                    }
+
+                    // TODO: In "Levels Unlock" mode the a mission that has hints should also have the small text above
+                    if (APManage.SlotData.unlockMethod != APManage.UnlockMethod.Levels)
+                    {
+                        if (missionHasHints && !isHintMission)
+                        {
+                            b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
+                                new AxKReplacementPair("{MN}", i),
+                                new AxKReplacementPair("{CHK}", chks),
+                                // TODO: This needs a locale.csv update.
+                                // Do we even need this with the Hint Mission and / or blue button background?
+                                new AxKReplacementPair("{CN}", $"Hinted - {n}", false),
+                                new AxKReplacementPair("{MRK}", ""),
+                            ]);
+                        }
+                        else
+                        {
+                            b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
+                                new AxKReplacementPair("{MN}", i),
+                                new AxKReplacementPair("{CHK}", chks),
+                                new AxKReplacementPair("{CN}", n),
+                                new AxKReplacementPair("{MRK}", ""),
+                            ]);
                         }
                     }
                     b.buttonTextRef.lineSpacing = -15;
