@@ -100,13 +100,8 @@ namespace NWArchipelago.Modules
         {
             if (currentMissionID == HINTED_MISSION_ID && __result != null)
             {
-                // Check if there's any hinted missions
-                // If not, then don't override the result data
-                // if (Logic.AllHinted() > 0)
-                // {
                 __result.mission = 0;
                 __result.missionID = currentMissionID;
-                // }
             }
         }
 
