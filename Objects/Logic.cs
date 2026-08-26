@@ -218,9 +218,9 @@ namespace NWArchipelago.Objects
             return "NWArchipelago/CHECKS_SOME";
         }
 
-        internal static bool IsLevelDataHinted(LevelData levelData)
+        internal bool IsHinted()
         {
-            var levelName = LocalizationManager.GetTranslation(levelData.GetLevelDisplayName(), overrideLanguage: "English");
+            var levelName = LocalizationManager.GetTranslation(level.GetLevelDisplayName(), overrideLanguage: "English");
 
             List<string> medals = ["Bronze", "Silver", "Gold", "Ace", "Dev"];
             List<string> nameChecks = [
