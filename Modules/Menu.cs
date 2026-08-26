@@ -68,25 +68,51 @@ namespace NWArchipelago.Modules
 
             Patching.AddPatch(typeof(MenuScreenLocation), "CreateActionButton", NoMission, Patching.PatchTarget.Prefix);
 
-            Patching.AddPatch(typeof(GameData), "GetMission", GetHintMissionOverride, Patching.PatchTarget.Prefix);
+            Patching.AddPatch(typeof(GameData), "GetMission", GetMissionOverride, Patching.PatchTarget.Prefix);
+            Patching.AddPatch(typeof(MainMenu), "SelectMission", SelectMissionOverride, Patching.PatchTarget.Prefix);
+            Patching.AddPatch(typeof(GameData), "GetLevelInformation", GetLevelInformationOverride, Patching.PatchTarget.Postfix);
 
             APManage.OnStatusChanged += ForceTitle;
         }
 
-        // Add the hinted levels dynamically when we open the hint mission
-        // TODO: When playing a hint level from the Hint Mission and returning to the archive it will
-        // not put you back into the Hint Mission but instead where the level is actually in (e.g. Mission 3)
-        // Not sure where to hook that and how to fix it yet
-        static bool GetHintMissionOverride(string missionID, ref MissionData __result)
+        internal const string HINTED_MISSION_ID = "M_ARCHI_HINTED";
+
+        internal static string currentMissionID = "";
+
+        // Listen to the SelectMission method and save the current mission ID to a variable
+        static void SelectMissionOverride(string missionID)
         {
-            if (missionID == "M_ARCHI_HINTED")
+            NWArchipelago.Log.DebugMsg($"Selected mission: {missionID}");
+            currentMissionID = missionID;
+        }
+
+        // Override the level information when we are in the hinted mission
+        static void GetLevelInformationOverride(ref LevelInformation __result)
+        {
+            if (currentMissionID == HINTED_MISSION_ID && __result != null)
+            {
+                __result.mission = 0;
+                __result.missionID = currentMissionID;
+            }
+        }
+
+        // Add the hinted levels dynamically when we open the hint mission
+        static bool GetMissionOverride(string missionID, ref MissionData __result)
+        {
+            if (missionID == HINTED_MISSION_ID)
             {
                 __result = new MissionData
                 {
-                    missionID = "M_ARCHI_HINTED",
-                    name = "Hinted Missions"
+                    missionID = HINTED_MISSION_ID,
+                    name = "Hinted Missions",
+                    hubContentData = Campaign.campaign.missionData[0].hubContentData
                 };
-                __result.levels.AddRange(APManage.SlotData.levels.FindAll(Logic.IsLevelDataHinted));
+                __result.levels.AddRange(APManage.SlotData.levels.FindAll(level =>
+                {
+                    var logic = Logic.Level(level);
+
+                    return logic.IsHinted() && logic.CanAccessLevel();
+                }));
 
                 return false;
             }
@@ -99,7 +125,7 @@ namespace NWArchipelago.Modules
         static Color lowLight = new(0.8f, 0.8f, 0.8f);
         static Color yellowLight = new Color32(222, 213, 169, 255);
         static Color greenLight = new Color32(230, 255, 230, 255);
-        static Color blueLight = new Color32(130, 190, 255, 255);
+        static Color blueLight = new Color32(130, 210, 255, 255);
         static void SetButtonColor(Button button, Color c)
         {
             if (Logic.display.Value < Logic.LogicDisplay.Colors)
@@ -247,39 +273,39 @@ namespace NWArchipelago.Modules
             if (campaign.campaignID != Campaign.CAMPAIGN_ID)
                 return true;
 
-            MissionData[] missions = [.. campaign.missionData];
+            // Create a hint mission with all levels that are in logic and the player has access to
+            MissionData hintedMission = new()
+            {
+                missionID = HINTED_MISSION_ID,
+                missionDisplayName = "Hinted Mission"
+            };
+            foreach (var m in campaign.missionData)
+            {
+                hintedMission.levels.AddRange(m.levels.FindAll(level =>
+                {
+                    var logic = Logic.Level(level);
+                    return logic.IsHinted() && logic.CanAccessLevel();
+                }));
+            }
+
+            MissionData[] missions = [hintedMission, .. campaign.missionData];
             var template = __instance._missionMenuButtonTemplate.gameObject;
             template.SetActive(value: true);
 
             bool doneLocked = false;
-            // Starting the loop from -1 and hijacking that as ID 0 for the Hinted Missions
-            for (int i = -1; i < missions.Length; ++i)
+            for (int i = 0; i < missions.Length; ++i)
             {
-                var mission = missions[Math.Max(0, i)];
-                bool isHintMission = false;
-                if (i == -1)
-                {
-                    isHintMission = true;
-                    mission = new MissionData
-                    {
-                        missionID = "M_ARCHI_HINTED",
-                        name = "Hinted Missions"
-                    };
+                var mission = missions[i];
+                bool isHintMission = i == 0;
+                var missionHasHints = mission.levels.Any(level => Logic.Level(level).IsHinted());
 
-                    foreach (var m in missions)
-                    {
-                        mission.levels.AddRange(m.levels.FindAll(Logic.IsLevelDataHinted));
-                    }
-                }
                 MenuButtonHolder b = Utils.InstantiateUI(template, "Mission Button", template.transform.parent).GetComponent<MenuButtonHolder>();
                 __instance.buttonsToLoad.Add(b);
                 ____missionButtons.Add(b);
-                b.SetMissionData(mission, i + 1);
+                b.SetMissionData(mission, i);
                 b.onClickEvent.AddListener(() => __instance._firstNavElement = b.gameObject);
 
-                var missionHasHints = mission.levels.Any(Logic.IsLevelDataHinted);
-
-                if (i <= GameDataManager.campaignStats[Singleton<Game>.Instance.GetGameData().GetCurrentCampaign().campaignID].GetFarthestMission() || GS.unlockLevels)
+                if (i - 1 <= GameDataManager.campaignStats[Singleton<Game>.Instance.GetGameData().GetCurrentCampaign().campaignID].GetFarthestMission() || GS.unlockLevels)
                 {
                     b.SetLocked(val: false);
                     var chks = Logic.ChecksString(out var n, mission: mission);
@@ -287,19 +313,32 @@ namespace NWArchipelago.Modules
                     {
                         if (isHintMission)
                         {
-                            b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
-                                new AxKReplacementPair("{MN}", "Hints", false),
-                                new AxKReplacementPair("{CHK}", chks),
-                                new AxKReplacementPair("{CN}", n),
-                                new AxKReplacementPair("{MRK}", ""),
-                            ]);
+                            if (mission.levels.Count() == 0)
+                            {
+                                b.SetLocked(val: true);
+
+                                b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
+                                    new AxKReplacementPair("{MN}", "Hints", false),
+                                    new AxKReplacementPair("{CHK}", ""),
+                                    new AxKReplacementPair("{MRK}", "No Hinted Levels Playable", false),
+                                ]);
+                            }
+                            else
+                            {
+                                b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
+                                    new AxKReplacementPair("{MN}", "Hints", false),
+                                    new AxKReplacementPair("{CHK}", chks),
+                                    new AxKReplacementPair("{CN}", $"{mission.levels.Count()} levels - {n}", false),
+                                    new AxKReplacementPair("{MRK}", ""),
+                                ]);
+                            }
                         }
                         else
                         {
                             if (missionHasHints)
                             {
                                 b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
-                                    new AxKReplacementPair("{MN}", i + 1),
+                                    new AxKReplacementPair("{MN}", i),
                                     new AxKReplacementPair("{CHK}", chks),
                                     // TODO: This needs a locale.csv update.
                                     // Do we even need this with the Hint Mission and / or blue button background?
@@ -310,7 +349,7 @@ namespace NWArchipelago.Modules
                             else
                             {
                                 b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
-                                    new AxKReplacementPair("{MN}", i + 1),
+                                    new AxKReplacementPair("{MN}", i),
                                     new AxKReplacementPair("{CHK}", chks),
                                     new AxKReplacementPair("{CN}", n),
                                     new AxKReplacementPair("{MRK}", ""),
@@ -330,10 +369,8 @@ namespace NWArchipelago.Modules
                     else
                         SetButtonColor(b.ButtonRef, greenLight);
 
-                    if (missionHasHints)
-                    {
+                    if (isHintMission)
                         SetButtonColor(b.ButtonRef, blueLight);
-                    }
                 }
                 else if (!doneLocked)
                 {
@@ -343,7 +380,7 @@ namespace NWArchipelago.Modules
                     if (APManage.SlotData.unlockMethod == APManage.UnlockMethod.Missions)
                     {
                         b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
-                            new AxKReplacementPair("{MN}", i + 1),
+                            new AxKReplacementPair("{MN}", i),
                             new AxKReplacementPair("{MRK}", ""),
                             new AxKReplacementPair("{CHK}", ""),
                         ]);
@@ -351,7 +388,7 @@ namespace NWArchipelago.Modules
                     else
                     {
                         b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
-                            new AxKReplacementPair("{MN}", i + 1),
+                            new AxKReplacementPair("{MN}", i),
                             new AxKReplacementPair("{MRK}", "NWArchipelago/MISSION_RANKS"),
                             new AxKReplacementPair("{R0}", SaveHandler.archiSaveData.neonRank),
                             new AxKReplacementPair("{R1}", mission.medalsRequired),
@@ -384,6 +421,14 @@ namespace NWArchipelago.Modules
             template.SetActive(value: true);
 
             var setupnav = Helpers.Method(typeof(MenuScreenLevel), "SetupNavigation");
+
+            // Sort levels alphabetaically by display name
+            Array.Sort(levels, (a, b) =>
+            {
+                string levelA = LocalizationManager.GetTranslation(a.GetLevelDisplayName());
+                string levelB = LocalizationManager.GetTranslation(b.GetLevelDisplayName());
+                return string.Compare(levelA, levelB);
+            });
 
             for (int i = 0; i < levels.Length; i++)
             {
@@ -465,7 +510,7 @@ namespace NWArchipelago.Modules
             {
                 var leveldisplay = showKey.Value ? "NWArchipelago/LEVEL_NAME_WKEY" : ld.GetLevelDisplayName();
 
-                if (Logic.IsLevelDataHinted(ld))
+                if (Logic.Level(ld).IsHinted() && currentMissionID != HINTED_MISSION_ID)
                 {
                     __instance._textLevelName_Localized.SetKey("NWArchipelago/LEVEL_NAME", [
                         new AxKReplacementPair("{OG?}", leveldisplay),
@@ -506,10 +551,9 @@ namespace NWArchipelago.Modules
             else
                 SetButtonColor(__instance._button, greenLight);
 
-            if (Logic.IsLevelDataHinted(ld))
-            {
+            // Only use blue hint color if the level is hinted, has checks available and is not in the hint mission
+            if (Logic.Level(ld).IsHinted() && checks > 0 && currentMissionID != HINTED_MISSION_ID)
                 SetButtonColor(__instance._button, blueLight);
-            }
 
             if (APManage.SlotData.unlockMethod == APManage.UnlockMethod.Levels)
                 __instance.SetLocked(!Campaign.unlockedLevels.Contains(ld.levelIntegerID));
