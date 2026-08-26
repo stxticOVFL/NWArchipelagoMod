@@ -181,6 +181,30 @@ namespace NWArchipelago.Objects
 
         internal Logic Full(bool full = true) => Level(level, full);
 
+        internal static int MissionHinted(MissionData mission, bool andAvailable = false, bool full = false)
+        {
+            return mission.levels
+                .Select(x => Level(x, full))
+                .Count(x =>
+                {
+                    bool hinted = x.IsHinted();
+
+                    return andAvailable ? hinted && x.CanAccessLevel() : hinted;
+                });
+        }
+
+        internal static int AllHinted(bool andAvailable = false, bool full = false)
+        {
+            return APManage.SlotData.levels
+                .Select(x => Level(x, full))
+                .Count(x =>
+                {
+                    bool hinted = x.IsHinted();
+
+                    return andAvailable ? hinted && x.CanAccessLevel() : hinted;
+                });
+        }
+
         internal static int MissionChecks(MissionData mission, bool full = false)
         {
             if (SaveHandler.archiSaveData.neonRank < mission.medalsRequired)
