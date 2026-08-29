@@ -339,6 +339,16 @@ namespace NWArchipelago.Modules
                         }
                         else
                         {
+                            // TODO: Show the orange exclamation mark icon when there's a hint
+                            MenuButtonMission missionButton = Traverse.Create(b).Field("missionRef").GetValue<MenuButtonMission>();
+                            if (missionButton != null)
+                            {
+                                var mbTraverse = Traverse.Create(missionButton);
+                                mbTraverse.Method("OnEnable").GetValue();
+                                GameObject mbGameObject = (GameObject)mbTraverse.Field("_newContentStatusObject").GetValue();
+                                mbGameObject?.SetActive(true);
+                            }
+
                             b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
                                 new AxKReplacementPair("{PREFIX}", "Hinted Levels", false),
                                 new AxKReplacementPair("{MN}", ""),
@@ -356,8 +366,18 @@ namespace NWArchipelago.Modules
                         {
                             if (missionHasHints)
                             {
+                                // TODO: Show the orange exclamation mark icon when there's a hint
+                                MenuButtonMission missionButton = Traverse.Create(b).Field("missionRef").GetValue<MenuButtonMission>();
+                                if (missionButton != null)
+                                {
+                                    var mbTraverse = Traverse.Create(missionButton);
+                                    mbTraverse.Method("OnEnable").GetValue();
+                                    GameObject mbGameObject = (GameObject)mbTraverse.Field("_newContentStatusObject").GetValue();
+                                    mbGameObject?.SetActive(true);
+                                }
+
                                 b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
-                                    new AxKReplacementPair("{PREFIX}", "MISSION_PREFIX"),
+                                    new AxKReplacementPair("{PREFIX}", "NWArchipelago/MISSION_PREFIX"),
                                     new AxKReplacementPair("{MN}", i),
                                     new AxKReplacementPair("{CHK}", chks),
                                     // TODO: This needs a locale.csv update.
@@ -369,7 +389,7 @@ namespace NWArchipelago.Modules
                             else
                             {
                                 b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
-                                    new AxKReplacementPair("{PREFIX}", "MISSION_PREFIX"),
+                                    new AxKReplacementPair("{PREFIX}", "NWArchipelago/MISSION_PREFIX"),
                                     new AxKReplacementPair("{MN}", i),
                                     new AxKReplacementPair("{CHK}", chks),
                                     new AxKReplacementPair("{CN}", n),
@@ -411,6 +431,7 @@ namespace NWArchipelago.Modules
                     if (APManage.SlotData.unlockMethod == APManage.UnlockMethod.Missions)
                     {
                         b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
+                            new AxKReplacementPair("{PREFIX}", "NWArchipelago/MISSION_PREFIX"),
                             new AxKReplacementPair("{MN}", i),
                             new AxKReplacementPair("{MRK}", ""),
                             new AxKReplacementPair("{CHK}", ""),
@@ -419,6 +440,7 @@ namespace NWArchipelago.Modules
                     else
                     {
                         b.localizedText.SetKey("NWArchipelago/MISSION_NAME", [
+                            new AxKReplacementPair("{PREFIX}", "NWArchipelago/MISSION_PREFIX"),
                             new AxKReplacementPair("{MN}", i),
                             new AxKReplacementPair("{MRK}", "NWArchipelago/MISSION_RANKS"),
                             new AxKReplacementPair("{R0}", SaveHandler.archiSaveData.neonRank),
@@ -543,6 +565,12 @@ namespace NWArchipelago.Modules
 
                 if (Logic.Level(ld).IsHinted() && currentMissionID != HINTED_MISSION_ID)
                 {
+                    // TODO: Show the orange exclamation mark icon when there's a hint
+                    var lbTraverse = Traverse.Create(__instance);
+                    lbTraverse.Method("CreateNewContentStatusIcon").GetValue();
+                    GameObject mbGameObject = (GameObject)lbTraverse.Field("_newContentStatusObject").GetValue();
+                    mbGameObject?.SetActive(true);
+
                     __instance._textLevelName_Localized.SetKey("NWArchipelago/LEVEL_NAME", [
                         new AxKReplacementPair("{OG?}", leveldisplay),
                         new AxKReplacementPair("{KEY}", Campaign.levelKey[ld.levelID], false),
