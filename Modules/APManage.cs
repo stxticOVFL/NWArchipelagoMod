@@ -98,7 +98,7 @@ namespace NWArchipelago.Modules
             public static int neonRanks;
             public static UnlockMethod unlockMethod;
 
-            public static MedalEnum medalCap;
+            public static HashSet<MedalEnum> medals;
             public static bool gifts = true;
             public static bool sidequests = true;
 
@@ -179,8 +179,10 @@ namespace NWArchipelago.Modules
 
             int medal = GetMedalIndex(level.levelID, time);
 
-            for (int i = 0; i <= medal && i <= (int)SlotData.medalCap; ++i)
-                locs.Add(string.Format(format, lname, (MedalEnum)i));
+            for (int i = 0; i <= medal && i <= (int)MedalEnum.Dev; ++i) {
+                if (SlotData.medals.Contains((MedalEnum)i))
+                    locs.Add(string.Format(format, lname, (MedalEnum)i));
+            }
 
             var ids = locs
                 .Select(x => session.Locations.GetLocationIdFromName(session.ConnectionInfo.Game, x))
@@ -389,7 +391,10 @@ namespace NWArchipelago.Modules
                 SlotData.sidequests = options["sidequests"];
 
             SlotData.unlockMethod = (UnlockMethod)(int)options["unlock_method"];
-            SlotData.medalCap = (MedalEnum)((int)options["medal_cap"] - 1);
+            SlotData.medals = [.. (options["medal_select"] as ProxyArray)
+                .Select(x => (string)x)
+                .Select(x => char.ToUpperInvariant(x[0]) + x.Substring(1))
+                .Select(x => (MedalEnum)Enum.Parse(typeof(MedalEnum), x))];
 
             SlotData.knowledge = (int)options["difficulty_knowledge"];
             SlotData.execution = (int)options["difficulty_execution"];

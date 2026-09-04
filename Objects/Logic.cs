@@ -137,6 +137,8 @@ namespace NWArchipelago.Objects
         {
             if (!CanAccessLevel())
                 return false;
+            if (!APManage.SlotData.medals.Contains(medal))
+                return false;
             if (level.isSidequest && medal != MedalEnum.Bronze)
                 return false; // cheap way to chechk for completion
             if (GetMedalIndex(level.levelID) >= (int)medal)
@@ -165,8 +167,10 @@ namespace NWArchipelago.Objects
 
             static IEnumerable<MedalEnum> MedalEnumerate()
             {
-                for (int i = 0; i <= (int)APManage.SlotData.medalCap; ++i)
-                    yield return (MedalEnum)i;
+                for (int i = 0; i <= (int)MedalEnum.Dev; ++i) {
+                    if (APManage.SlotData.medals.Contains((MedalEnum)i))
+                        yield return (MedalEnum)i;
+                }
             }
 
             return MedalEnumerate()
@@ -262,7 +266,7 @@ namespace NWArchipelago.Objects
                                 return;
                             }
 
-                            var cap = Math.Min((int)APManage.SlotData.medalCap, 4 - logic.m);
+                            var cap = 4 - logic.m;
 
                             for (int m = 0; m <= cap; ++m)
                             {

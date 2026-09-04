@@ -481,7 +481,7 @@ namespace NWArchipelago.Modules
 
 
             var medalEarned = GetMedalIndex(level.levelID);
-            var shift = medalEarned > (int)MedalEnum.Silver && APManage.SlotData.medalCap >= MedalEnum.Dev;
+            var shift = medalEarned > (int)MedalEnum.Silver && APManage.SlotData.medals.DefaultIfEmpty(MedalEnum.Bronze).Max() >= MedalEnum.Dev;
 
             Image aceImage = __instance._aceMedalBG.transform.parent.Find("Medal Icon").GetComponent<Image>();
             Image goldImage = __instance._goldMedalBG.transform.parent.Find("Medal Icon").GetComponent<Image>();

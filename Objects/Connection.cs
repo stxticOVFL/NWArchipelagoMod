@@ -85,6 +85,8 @@ namespace NWArchipelago.Objects
             if (!text.StartsWith("ws://") && !text.StartsWith("wss://"))
                 text = "unspecified://" + text;
 
+            NWArchipelago.Log.DebugMsg($"tryconnect {text}");
+
             if (!Uri.TryCreate(text, UriKind.Absolute, out var uri))
                 throw new InvalidOperationException("Uri is invalid.");
 

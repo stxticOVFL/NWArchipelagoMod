@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using UnityEngine;
 using static NeonLite.Helpers;
+using NeonLite.Modules;
 
 namespace NWArchipelago
 {
@@ -25,6 +26,8 @@ namespace NWArchipelago
         internal static AssetBundle bundle;
 
         internal static SynchronizationContext mainContext;
+
+        internal static Localization.LocaleCategory LC;
 
         public override void OnInitializeMelon()
         {
@@ -50,6 +53,10 @@ namespace NWArchipelago
                     bundle = abload.assetBundle;
                 };
             }
+
+            const string URL = "https://raw.githubusercontent.com/stxticOVFL/NWArchipelagoMod/main/Resources/locale.csv";
+            LC = Localization.GetLocale_Stream("NWArchipelago", Localization.Reader_CSVStream,
+                Resources.locale.GetStream(), URL);
         }
 
         public override void OnLateInitializeMelon()
