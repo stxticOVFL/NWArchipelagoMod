@@ -67,6 +67,8 @@ namespace NWArchipelago.Modules
             Patching.AddPatch(typeof(CommunityMedals), "PostSetLevel", Prevent, Patching.PatchTarget.Prefix);
 
             Patching.AddPatch(typeof(MenuScreenLocation), "CreateActionButton", NoMission, Patching.PatchTarget.Prefix);
+
+            APManage.OnStatusChanged += ForceTitle;
         }
 
         static bool Prevent() => false;
@@ -90,6 +92,16 @@ namespace NWArchipelago.Modules
         static GameObject[] titleLUL;
 
         internal static int previousRank;
+
+        static void ForceTitle(APManage.ConnectStatus _) {
+            if (MainMenu.Instance().GetCurrentState() != MainMenu.State.Title)
+            {
+                // this won't work right without it for some reason
+                MainMenu.Instance().PauseGame(true, animate: false);
+                MainMenu.Instance().PauseGameNoStateChange(false);
+                Game.Instance.QuitToTitle();
+            }
+        }
 
         static bool SetupTitle(MenuScreenTitle __instance)
         {

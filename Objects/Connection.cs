@@ -102,6 +102,7 @@ namespace NWArchipelago.Objects
                     ws = new ClientWebSocket();
                     this.uri = await ConnectFlexUri(uri);
                     enabled = true;
+                    Wrapper.i.OnOpen();
                     NWArchipelago.Log.DebugMsg($"connected to {this.uri}");
                 }
                 catch (Exception e)
@@ -158,7 +159,7 @@ namespace NWArchipelago.Objects
                 }
                 while (!result.EndOfMessage && !canceller.IsCancellationRequested);
 
-                if (result.MessageType == WebSocketMessageType.Close)
+                if (result == null || result.MessageType == WebSocketMessageType.Close)
                 {
                     // figure out close stuff
                     break;
@@ -202,10 +203,28 @@ namespace NWArchipelago.Objects
                 }
             }
 
-            NWArchipelago.Log.Warning($"Closing... {ws.State}");
+            NWArchipelago.Log.Warning($"Closing... socket state: {ws.State}");
+            Cancel();
             await sender;
             if (ws.State == WebSocketState.Open)
-                await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, string.Empty, CancellationToken.None);
+            {
+                try
+                {
+                    await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, string.Empty, CancellationToken.None);
+                }
+                catch (Exception e)
+                {
+                    NWArchipelago.Log.Warning($"Error while closing, continuing as normal:");
+                    NWArchipelago.Log.Warning(e);
+                }
+            }
+            Wrapper.i.OnClose();
+
+            // AP specific code lets ditch this joint
+            if (APManage.ConnectionStatus == APManage.ConnectStatus.Connected) {
+                // kick us into the title screen if we aren't already
+                APManage.SetConnectStatus(APManage.ConnectStatus.Idle);
+            }
 
             Destroy(this);
         }
@@ -234,6 +253,7 @@ namespace NWArchipelago.Objects
                         NWArchipelago.Log.DebugMsg($"FAILED TO SEND");
                         sendComplete.TrySetException(e);
                     }
+                    Wrapper.i.OnPacketsSend([.. sendQueue]);
                     sendQueue.Clear();
                 }
                 sendSemaphore.Release();
@@ -284,6 +304,10 @@ namespace NWArchipelago.Objects
 
             APManage.SetConnectStatus(APManage.ConnectStatus.Connecting);
 
+            Cards.Clear();
+            Campaign.unlockedLevels.Clear();
+            APManage.itemIndex = 0;
+
             try
             {
                 await APManage.PrepareItemChecks();
@@ -318,7 +342,7 @@ namespace NWArchipelago.Objects
         }
 
         public Uri Uri => Awaiter.i.uri;
-        public bool Connected => Awaiter.i.enabled;
+        public bool Connected => Awaiter.i?.enabled ?? false;
 
         public event ArchipelagoSocketHelperDelagates.PacketReceivedHandler PacketReceived;
         public event ArchipelagoSocketHelperDelagates.PacketsSentHandler PacketsSent;
@@ -329,6 +353,7 @@ namespace NWArchipelago.Objects
         public Task ConnectAsync() => Awaiter.i.Connect();
         public Task DisconnectAsync()
         {
+            NWArchipelago.Log.DebugMsg("Wrapper DisconnectAsync");
             Awaiter.i.Cancel();
             return Task.CompletedTask;
         }
@@ -344,6 +369,9 @@ namespace NWArchipelago.Objects
 
         internal void OnError(Exception e) => ErrorReceived?.Invoke(e, e.Message);
         internal void OnPacket(ArchipelagoPacketBase packet) => PacketReceived?.Invoke(packet);
+        internal void OnOpen() => SocketOpened?.Invoke();
+        internal void OnClose(string reason = "") => SocketClosed?.Invoke(reason);
+        internal void OnPacketsSend(ArchipelagoPacketBase[] packets) => PacketsSent?.Invoke(packets);
     }
 
     [Module]
@@ -397,7 +425,7 @@ namespace NWArchipelago.Objects
             foreach (var a in Awaiter.instances)
             {
                 if (a.hostname != host)
-                    Destroy(a);
+                    a.Cancel();
             }
         }
     }

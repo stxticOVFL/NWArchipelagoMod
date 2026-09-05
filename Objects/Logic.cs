@@ -77,7 +77,7 @@ namespace NWArchipelago.Objects
             BookOfLife = 1 << 13
         }
 
-        internal bool HasSingleRequirement(LevelRequirements single)
+        internal static bool HasSingleRequirement(LevelRequirements single)
         {
             if (single == LevelRequirements.FistOnly)
                 return true;
@@ -105,7 +105,7 @@ namespace NWArchipelago.Objects
             return tolook.Contains(Cards.EngToID(str));
         }
 
-        internal bool HasRequirements(LevelRequirements requirements)
+        internal static bool HasRequirements(LevelRequirements requirements)
         {
             if (requirements == LevelRequirements.FistOnly)
                 return true;
@@ -222,6 +222,14 @@ namespace NWArchipelago.Objects
             return "NWArchipelago/CHECKS_SOME";
         }
 
+        Logic Clear() {
+            ranks = 0;
+            perMedalLogic.Clear();
+            giftLogic.Clear();
+
+            return this;
+        }
+
 #pragma warning disable CS0649
         [Serializable]
         class LogicProxy
@@ -245,8 +253,8 @@ namespace NWArchipelago.Objects
                     var lname = LocalizationManager.GetTranslation(level.GetLevelDisplayName(), overrideLanguage: "English");
                     var logics = json[lname] as ProxyArray;
 
-                    var normal = logicData.GetOrCreateValue(level);
-                    var full = fullData.GetOrCreateValue(level);
+                    var normal = logicData.GetOrCreateValue(level).Clear();
+                    var full = fullData.GetOrCreateValue(level).Clear();
 
                     foreach (var logic in logics.Select(x => x.Make<LogicProxy>()))
                     {

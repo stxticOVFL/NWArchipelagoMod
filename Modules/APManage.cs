@@ -92,7 +92,7 @@ namespace NWArchipelago.Modules
 
         internal static class SlotData
         {
-            public static List<LevelData> levels;
+            public static List<LevelData> levels = [];
 
             public static List<int> missionReqs;
             public static int neonRanks;
@@ -106,7 +106,6 @@ namespace NWArchipelago.Modules
             public static int execution;
 
             public static Goal winCondition;
-            public static MedalEnum bossesCap;
         }
 
         internal enum ConnectStatus
@@ -145,6 +144,7 @@ namespace NWArchipelago.Modules
 
         internal static void ParseItem(ItemInfo item)
         {
+            NWArchipelago.Log.DebugMsg($"parse {item.ItemName}");
             var type = item.ItemId / 100;
 
             switch (type)
@@ -233,8 +233,10 @@ namespace NWArchipelago.Modules
                         bool all = true;
                         foreach (var l in BOSSES)
                         {
-                            if (CommunityMedals.GetMedalIndex(l) < (int)SlotData.bossesCap)
+                            if (CommunityMedals.GetMedalIndex(l) < (int)SlotData.medals.Max()) {
                                 all = false;
+                                break;
+                            }
                         }
                         if (all)
                             session.SetGoalAchieved(); // WE Did it
@@ -332,9 +334,7 @@ namespace NWArchipelago.Modules
                     _tuple += pow85[count];
                     DecodeBlock(count);
                     for (int i = 0; i < count; i++)
-                    {
                         ms.WriteByte(_decodedBlock[i]);
-                    }
                 }
 
                 ms.Seek(0, SeekOrigin.Begin);
@@ -346,9 +346,7 @@ namespace NWArchipelago.Modules
             private void DecodeBlock(int bytes)
             {
                 for (int i = 0; i < bytes; i++)
-                {
                     _decodedBlock[i] = (byte)(_tuple >> 24 - (i * 8));
-                }
             }
         }
 
@@ -372,18 +370,6 @@ namespace NWArchipelago.Modules
 
             NWArchipelago.Log.DebugMsg("load slotdata");
 
-            var decoded = new Ascii85().Decode(variant["level_order"] as ProxyString);
-            using MemoryStream decompressed = new();
-            using (DeflateStream deflate = new(decoded, CompressionMode.Decompress))
-                deflate.CopyTo(decompressed);
-
-            Variant list = JSON.Load(UTF8.GetString(decompressed.ToArray()));
-
-            SlotData.levels = [.. (list as ProxyArray).Select(x => gd.GetLevelData(x))];
-
-            SlotData.missionReqs = [.. (variant["mission_costs"] as ProxyArray).Select(x => (int)x)];
-            SlotData.neonRanks = SlotData.missionReqs.Last();
-
             var options = variant["options"] as ProxyObject;
             if (options.Keys.Contains("gifts"))
                 SlotData.gifts = options["gifts"];
@@ -396,12 +382,45 @@ namespace NWArchipelago.Modules
                 .Select(x => char.ToUpperInvariant(x[0]) + x.Substring(1))
                 .Select(x => (MedalEnum)Enum.Parse(typeof(MedalEnum), x))];
 
+            if (SlotData.unlockMethod != UnlockMethod.Levels)
+            {
+                var decoded = new Ascii85().Decode(variant["level_order"] as ProxyString);
+                using MemoryStream decompressed = new();
+                using (DeflateStream deflate = new(decoded, CompressionMode.Decompress))
+                    deflate.CopyTo(decompressed);
+
+                Variant list = JSON.Load(UTF8.GetString(decompressed.ToArray()));
+
+                SlotData.levels = [.. (list as ProxyArray)
+                    .Select(x => gd.GetLevelData(x) ??
+                        // level missing? check the backups
+                        Campaign.ogCampaignBak.missionData.SelectMany(m => m.levels)
+                            .FirstOrDefault(l => l.levelID == x) ??
+                        Campaign.sqCampaignBak.missionData.SelectMany(m => m.levels)
+                            .FirstOrDefault(l => l.levelID == x))
+                ];
+
+                SlotData.missionReqs = [.. (variant["mission_costs"] as ProxyArray).Select(x => (int)x)];
+                SlotData.neonRanks = SlotData.missionReqs.Last();
+            }
+            else
+            {
+                // this is pre campaign
+                var main = gd.GetCampaign(Campaign.OGCAMPAIGN_ID) ?? Campaign.ogCampaignBak;
+                SlotData.levels = [.. main.missionData.SelectMany(x => x.levels)];
+                if (SlotData.sidequests)
+                {
+                    var sq = gd.GetCampaign(Campaign.SQCAMPAIGN_ID) ?? Campaign.sqCampaignBak;
+                    SlotData.levels.AddRange(sq.missionData.First(x => x.missionID.Contains("RED")).levels);
+                    SlotData.levels.AddRange(sq.missionData.First(x => x.missionID.Contains("VIOLET")).levels);
+                    SlotData.levels.AddRange(sq.missionData.First(x => x.missionID.Contains("YELLOW")).levels);
+                }
+            }
+
             SlotData.knowledge = (int)options["difficulty_knowledge"];
             SlotData.execution = (int)options["difficulty_execution"];
 
             SlotData.winCondition = (Goal)(int)options["goal"];
-            if (SlotData.winCondition == Goal.AllBosses)
-                SlotData.bossesCap = (MedalEnum)((int)options["bosses_goal_cap"] - 1);
 
             NWArchipelago.Log.DebugMsg("download/load logic");
 

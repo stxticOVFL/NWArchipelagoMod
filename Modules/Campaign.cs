@@ -15,6 +15,7 @@ namespace NWArchipelago.Modules
 
         internal const string CAMPAIGN_ID = "C_ARCHIPELAGO";
         internal const string OGCAMPAIGN_ID = "C_MAINQUEST";
+        internal const string SQCAMPAIGN_ID = "C_SIDEQUESTS";
 
         static void Setup() => active = !Settings.testMode;
 
@@ -78,38 +79,62 @@ namespace NWArchipelago.Modules
 
         internal static HashSet<int> unlockedLevels = [];
         internal static CampaignData campaign;
+
+        internal static CampaignData ogCampaignBak;
+        internal static CampaignData sqCampaignBak;
+
         internal static void MakeCampaign()
         {
             NWArchipelago.Log.DebugMsg("make campaign");
             var gd = Singleton<Game>.Instance.GetGameData();
 
-            var km = 0;
-            foreach (var mission in gd.GetCampaign("C_MAINQUEST").missionData)
+            if (!ogCampaignBak)
             {
-                ++km;
-                var lm = 0;
-                foreach (var level in mission.levels)
-                    levelKey.Add(level.levelID, $"{km}-{++lm}");
+                var km = 0;
+                foreach (var mission in gd.GetCampaign("C_MAINQUEST").missionData)
+                {
+                    ++km;
+                    var lm = 0;
+                    foreach (var level in mission.levels)
+                        levelKey.Add(level.levelID, $"{km}-{++lm}");
+                }
+
+
+                foreach (var mission in gd.GetCampaign("C_SIDEQUESTS").missionData)
+                {
+                    var match = sidequestLRegex.Match(mission.missionID)?.Groups[1]?.Value;
+                    if (match == "G" || match == null)
+                        continue;
+
+                    var lm = 0;
+                    foreach (var level in mission.levels)
+                        levelKey.Add(level.levelID, $"{match}-{++lm}");
+                }
             }
 
-
-            foreach (var mission in gd.GetCampaign("C_SIDEQUESTS").missionData)
+            if (!ogCampaignBak)
             {
-                var match = sidequestLRegex.Match(mission.missionID)?.Groups[1]?.Value;
-                if (match == "G" || match == null)
-                    continue;
-
-                var lm = 0;
-                foreach (var level in mission.levels)
-                    levelKey.Add(level.levelID, $"{match}-{++lm}");
+                ogCampaignBak = UnityEngine.Object.Instantiate(gd.GetCampaign(OGCAMPAIGN_ID));
+                ogCampaignBak.name = OGCAMPAIGN_ID + "_BACKUP";
             }
+            if (!sqCampaignBak)
+            {
+                sqCampaignBak = UnityEngine.Object.Instantiate(gd.GetCampaign(SQCAMPAIGN_ID));
+                sqCampaignBak.name = SQCAMPAIGN_ID + "_BACKUP";
+            }
+
 
             // we're gonna hijack mainquest
-            campaign = gd.GetCampaign(OGCAMPAIGN_ID);
-            campaign.name = "Campaign_Archipelago";
-            campaign.campaignID = CAMPAIGN_ID;
-            // campaign.campaignType = CampaignData.CampaignType.Sidequest;
-            campaign.campaignDisplayName = "Archipelago";
+            if (!campaign)
+            {
+                campaign = gd.GetCampaign(OGCAMPAIGN_ID);
+                campaign.name = "Campaign_Archipelago";
+                campaign.campaignID = CAMPAIGN_ID;
+                // campaign.campaignType = CampaignData.CampaignType.Sidequest;
+                campaign.campaignDisplayName = "Archipelago";
+            }
+            // clone as a basis
+            campaign.missionData = [.. ogCampaignBak.missionData];
 
             static HubContentLocationData GetFromRepeating(string id)
             {
@@ -131,7 +156,7 @@ namespace NWArchipelago.Modules
 
             if (SlotData.unlockMethod != UnlockMethod.Levels)
             {
-                gd.campaigns.RemoveAll(x => x.campaignID == "C_SIDEQUESTS");
+                gd.campaigns.RemoveAll(x => x.campaignID == SQCAMPAIGN_ID);
                 campaign.missionData.Clear();
 
                 var missionCount = SlotData.missionReqs.Count;
@@ -168,13 +193,12 @@ namespace NWArchipelago.Modules
             {
                 if (SlotData.sidequests)
                 {
-                    var sq = gd.GetCampaign("C_SIDEQUESTS");
-                    campaign.missionData.Add(sq.missionData.First(x => x.missionID.Contains("RED")));
-                    campaign.missionData.Add(sq.missionData.First(x => x.missionID.Contains("VIOLET")));
-                    campaign.missionData.Add(sq.missionData.First(x => x.missionID.Contains("YELLOW")));
+                    campaign.missionData.Add(sqCampaignBak.missionData.First(x => x.missionID.Contains("RED")));
+                    campaign.missionData.Add(sqCampaignBak.missionData.First(x => x.missionID.Contains("VIOLET")));
+                    campaign.missionData.Add(sqCampaignBak.missionData.First(x => x.missionID.Contains("YELLOW")));
                 }
 
-                gd.campaigns.RemoveAll(x => x.campaignID == "C_SIDEQUESTS");
+                gd.campaigns.RemoveAll(x => x.campaignID == SQCAMPAIGN_ID);
 
                 int intID = 0;
                 foreach (var mission in campaign.missionData)
@@ -187,6 +211,9 @@ namespace NWArchipelago.Modules
                     foreach (var level in mission.levels)
                         level.levelIntegerID = intID++;
                 }
+
+                SlotData.levels.Clear();
+                SlotData.levels.AddRange(campaign.missionData.SelectMany(x => x.levels));
             }
         }
 

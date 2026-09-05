@@ -62,6 +62,12 @@ namespace NWArchipelago.Modules
             Patching.AddPatch(typeof(MechController), "OnCollectAmmo", DirectAmmo, Patching.PatchTarget.Prefix);
         }
 
+        internal static void Clear() {
+            fires.Clear();
+            discards.Clear();
+            cardPickups.Clear();
+        }
+
         internal static void OnLevelLoad(LevelData _)
         {
             cardPickups = [.. cardPickups.Where(c => c != null)];
@@ -88,6 +94,16 @@ namespace NWArchipelago.Modules
                 return;
 
             __result = fires.Contains(data.cardID) || discards.Contains(data.cardID);
+            var lvl = Game.Instance.GetCurrentLevel();
+            if (!lvl)
+                return;
+
+            var discardLock = lvl.discardLockData.FirstOrDefault(x => x.cards.Any(c => c == data));
+            if (discardLock == null)
+                return;
+
+            if (discards.Contains(data.cardID) && discardLock.TestConditionLocked())
+                __result = fires.Contains(data.cardID);
         }
 
         internal static bool JamGun(int handIndex, ref bool __result)
@@ -144,7 +160,7 @@ namespace NWArchipelago.Modules
             if (GetCurrentFirearm() == "FISTS")
                 gotFists.SetValue(RM.mechController, true);
 
-            card.data = Singleton<Game>.Instance.GetGameData().GetCard(GetCurrentFirearm());
+            card.data = Game.Instance.GetGameData().GetCard(GetCurrentFirearm());
             return card;
         }
 
@@ -228,7 +244,7 @@ namespace NWArchipelago.Modules
 
             foreach (var cid in affectedCards)
             {
-                var card = Singleton<Game>.Instance.GetGameData().GetCard(cid);
+                var card = Game.Instance.GetGameData().GetCard(cid);
                 TestPanel.i.AddCard(LocalizationManager.GetTranslation(UICard.GetAbilityNameFormatted(card)), cid, card.cardColor, cid != "RAPTURE", cid != "KATANA");
             }
         }
@@ -245,7 +261,7 @@ namespace NWArchipelago.Modules
                 return;
             }
 
-            var lvl = Singleton<Game>.Instance.GetCurrentLevel();
+            var lvl = Game.Instance.GetCurrentLevel();
             if (!lvl || lvl.collectibleGiftForCharacter == null)
                 return;
 
@@ -286,7 +302,7 @@ namespace NWArchipelago.Modules
                 return;
             }
 
-            var lvl = Singleton<Game>.Instance.GetCurrentLevel();
+            var lvl = Game.Instance.GetCurrentLevel();
             if (!lvl || lvl.collectibleGiftForCharacter == null)
                 return;
 

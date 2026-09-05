@@ -135,6 +135,9 @@ namespace NWArchipelago
             ip = NeonLite.Settings.Add(h, "Connection", "ip", "Server IP/Address", null, "archipelago.gg");
             port = NeonLite.Settings.Add(h, "Connection", "port", "Server Port", null, 38281);
             slotname = NeonLite.Settings.Add(h, "Connection", "slotName", "Player/Slot Name", null, "NeonWhite");
+            // if slotname change then disconnect
+            slotname.OnEntryValueChanged.Subscribe((_, _) => Awaiter.i?.Cancel());
+
             password = NeonLite.Settings.Add(h, "Connection", "password", "Password", "The password for the Archipelago. Be careful about showing this!", "");
 
             gameoverride = NeonLite.Settings.Add(h, "", "gameoverride", "Game Override", "FOR TESTING PURPOSES ONLY! Do not modify!", "Neon White", true);
