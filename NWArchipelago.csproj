@@ -3,7 +3,7 @@
         <!-- The name of the mod -->
         <NWName>NWArchipelago</NWName>
         <NWAuthor>stxticOVFL</NWAuthor>
-        <NWVersion>1.0.0</NWVersion>
+        <NWVersion>0.0.9</NWVersion>
         <!-- The name of the *DLL* -->
         <AssemblyName>$(NWName)</AssemblyName>
 

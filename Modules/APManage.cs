@@ -161,6 +161,21 @@ namespace NWArchipelago.Modules
                     Campaign.unlockedLevels.Add((int)(item.ItemId - 600));
                     return;
                 case 8: // misc
+                    type = item.ItemId - 800;
+                    switch (type)
+                    {
+                        case 51:
+                            RM.mechController?.DoConsumable(PlayerCardData.ConsumableType.HealthUp);
+                            break;
+                        case 52:
+                            if (!RM.mechController)
+                                break;
+                            bool ammoavail = false;
+                            Cards.CheckAmmo(RM.mechController, ref ammoavail);
+                            if (ammoavail)
+                                RM.mechController.DoConsumable(PlayerCardData.ConsumableType.Ammo);
+                            break;
+                    }
                     return;
             }
         }
@@ -179,7 +194,8 @@ namespace NWArchipelago.Modules
 
             int medal = GetMedalIndex(level.levelID, time);
 
-            for (int i = 0; i <= medal && i <= (int)MedalEnum.Dev; ++i) {
+            for (int i = 0; i <= medal && i <= (int)MedalEnum.Dev; ++i)
+            {
                 if (SlotData.medals.Contains((MedalEnum)i))
                     locs.Add(string.Format(format, lname, (MedalEnum)i));
             }
@@ -233,7 +249,8 @@ namespace NWArchipelago.Modules
                         bool all = true;
                         foreach (var l in BOSSES)
                         {
-                            if (CommunityMedals.GetMedalIndex(l) < (int)SlotData.medals.Max()) {
+                            if (CommunityMedals.GetMedalIndex(l) < (int)SlotData.medals.Max())
+                            {
                                 all = false;
                                 break;
                             }

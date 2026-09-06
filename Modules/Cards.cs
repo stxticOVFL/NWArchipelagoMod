@@ -359,7 +359,7 @@ namespace NWArchipelago.Modules
             "RAPTURE"
         ];
 
-        static void CheckAmmo(MechController __instance, ref bool __result)
+        internal static void CheckAmmo(MechController __instance, ref bool __result)
         {
             if (!__result)
                 return;
