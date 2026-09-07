@@ -168,7 +168,7 @@ namespace NWArchipelago.Modules
                 {
                     var mission = ScriptableObject.CreateInstance<MissionData>();
                     mission.missionID = $"M_ARCHI{m}";
-                    mission.missionDisplayName = $"Mission {m + 1}";
+                    mission.missionDisplayName = "NWArchipelago/MISSION_NUMBERED";
                     mission.hubContentData = hcd;
 
                     if (m != 0)

@@ -552,21 +552,27 @@ namespace NWArchipelago.Modules
             hints = hint;
         }
 
-        public static bool IsHinted(long locationId, bool hinted)
+        public static bool IsHinted(string location)
         {
-            return hinted ||
-                hints.Any(
+            if (!Logic.hints.Value)
+                return false; // lie
+            var locID = session.Locations.GetLocationIdFromName(
+                Settings.gameoverride.Value,
+                location
+            );
+
+            return hints?.Any(
                     hint =>
                         hint.FindingPlayer == session.Players.ActivePlayer.Slot &&
-                        hint.LocationId == locationId &&
+                        hint.LocationId == locID &&
                         !hint.Found
-                );
+                ) ?? false;
         }
 
         internal static void OnCollectible(LevelStats __instance)
         {
             var levelID = GameDataManager.levelStats.Where(kv => kv.Value == __instance).Select(kv => kv.Key).FirstOrDefault();
-            var level = Singleton<Game>.Instance.GetGameData().GetLevelData(levelID);
+            var level = Game.Instance.GetGameData().GetLevelData(levelID);
             if (!level)
                 return;
 

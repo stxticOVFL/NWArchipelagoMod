@@ -1,10 +1,12 @@
 
 using System.Runtime.CompilerServices;
+using HarmonyLib;
 using I2.Loc;
 using MelonLoader;
 using MelonLoader.TinyJSON;
 using NeonLite.Modules;
 using NWArchipelago.Modules;
+using UnityEngine;
 using static NeonLite.Modules.CommunityMedals;
 
 namespace NWArchipelago.Objects
@@ -24,8 +26,20 @@ namespace NWArchipelago.Objects
             Full,
         }
 
+        internal enum HintDisplay
+        {
+            Never,
+            WhenAny,
+            WhenAvailable,
+            Always,
+        }
+
         internal static MelonPreferences_Entry<LogicDisplay> display;
         internal static MelonPreferences_Entry<bool> outOfLogic;
+
+        internal static MelonPreferences_Entry<bool> hints;
+        internal static MelonPreferences_Entry<HintDisplay> hintDisplay;
+
 
         static void Setup()
         {
@@ -38,10 +52,23 @@ namespace NWArchipelago.Objects
                 Colors - Only colors the buttons. The full amount of checks is still shown on the title screen
                 TitleOnly - Only give the number on the title screen
                 None - Don't show any check indication at all
-                """, LogicDisplay.Colors);
+                """, LogicDisplay.ColorsDetailed);
 
             outOfLogic = NeonLite.Settings.Add(Settings.h, "Tracking", "yellowLogic", "Show Out of Logic",
                 "Whether to show out of logic (but still possible!) checks as yellow.", false);
+
+            hints = NeonLite.Settings.Add(Settings.h, "Tracking", "hints", "Show Hinted",
+                "Whether to enable any hinted functionality.", false);
+
+            hintDisplay = NeonLite.Settings.Add(Settings.h, "Tracking", "hintDisplay", "Hint Button Display",
+                """
+                When the hinted levels mission button should show up:
+
+                Always - Always show the hinted button
+                WhenAny - Show the hinted button if you have any hinted in your game
+                WhenAvailable - Show the hinted button only when any are in logic
+                Never - Never show the hints button
+                """, HintDisplay.WhenAvailable);
         }
 
         static readonly ConditionalWeakTable<LevelData, Logic> logicData = new();
@@ -148,17 +175,63 @@ namespace NWArchipelago.Objects
 
             return logic.Any(HasRequirements);
         }
+        internal bool MedalHinted(MedalEnum medal, bool inLogic = true, bool accessible = true) {
+            if (inLogic)
+            {
+                if (!CanGetMedal(medal))
+                    return false;
+            }
+            else
+            {
+                if (accessible && !CanAccessLevel())
+                    return false;
+                if (!APManage.SlotData.medals.Contains(medal))
+                    return false;
+                if (level.isSidequest && medal != MedalEnum.Bronze)
+                    return false; // cheap way to *filter* to just check once
+            }
+
+            var levelName = LocalizationManager.GetTranslation(level.GetLevelDisplayName(), overrideLanguage: "English");
+
+            string namecheck;
+            if (level.isSidequest)
+                namecheck = $"{levelName} Completion";
+            else
+                namecheck = $"{levelName} {medal} Completion";
+
+            return APManage.IsHinted(namecheck);
+        }
+
         internal bool CanGift()
         {
-            if (!CanAccessLevel() || !APManage.SlotData.gifts)
+            if (!APManage.SlotData.gifts || level.isSidequest || GIFTLESS.Contains(level.levelID))
                 return false;
-            if (level.isSidequest || GIFTLESS.Contains(level.levelID))
-                return false; // these don't have one
+            if (!CanAccessLevel())
+                return false;
             if (GameDataManager.GetLevelStats(level.levelID).HasCollectibleBeenFound())
                 return false; // we already have it
 
             return giftLogic.Any(HasRequirements);
         }
+        internal bool GiftHinted(bool inLogic = true, bool accessible = true) {
+            if (!APManage.SlotData.gifts || level.isSidequest || GIFTLESS.Contains(level.levelID))
+                return false;
+
+            if (inLogic)
+            {
+                if (!CanGift())
+                    return false;
+            }
+            else
+            {
+                if (accessible && !CanAccessLevel())
+                    return false;
+            }
+
+            var levelName = LocalizationManager.GetTranslation(level.GetLevelDisplayName(), overrideLanguage: "English");
+            return APManage.IsHinted($"{levelName} Gift");
+        }
+
 
         internal int Checks()
         {
@@ -178,32 +251,23 @@ namespace NWArchipelago.Objects
                 .Append(CanGift())
                 .Count(x => x);
         }
+        internal int Hinteds(bool inLogic = true, bool accessible = true) {
+            static IEnumerable<MedalEnum> MedalEnumerate()
+            {
+                for (int i = 0; i <= (int)MedalEnum.Dev; ++i)
+                {
+                    if (APManage.SlotData.medals.Contains((MedalEnum)i))
+                        yield return (MedalEnum)i;
+                }
+            }
+
+            return MedalEnumerate()
+                .Select(x => MedalHinted(x, inLogic, accessible))
+                .Append(GiftHinted(inLogic, accessible))
+                .Count(x => x);
+        }
 
         internal Logic Full(bool full = true) => Level(level, full);
-
-        internal static int MissionHinted(MissionData mission, bool andAvailable = false, bool full = false)
-        {
-            return mission.levels
-                .Select(x => Level(x, full))
-                .Count(x =>
-                {
-                    bool hinted = x.IsHinted();
-
-                    return andAvailable ? hinted && x.CanAccessLevel() : hinted;
-                });
-        }
-
-        internal static int AllHinted(bool andAvailable = false, bool full = false)
-        {
-            return APManage.SlotData.levels
-                .Select(x => Level(x, full))
-                .Count(x =>
-                {
-                    bool hinted = x.IsHinted();
-
-                    return andAvailable ? hinted && x.CanAccessLevel() : hinted;
-                });
-        }
 
         internal static int MissionChecks(MissionData mission, bool full = false)
         {
@@ -222,50 +286,137 @@ namespace NWArchipelago.Objects
                 .Sum(x => x.Checks());
         }
 
-
-        internal static string ChecksString(out int checks, LevelData level = null, MissionData mission = null, bool force = false)
+        internal static int MissionHinted(MissionData mission, bool inLogic = true, bool accessible = true, bool full = false)
         {
-            checks = 0;
+            if (SaveHandler.archiSaveData.neonRank < mission.medalsRequired)
+                return 0;
+
+            return mission.levels
+                .Select(x => Level(x, full))
+                .Sum(x => x.Hinteds(inLogic, accessible));
+        }
+
+        internal static int AllHinted(bool inLogic = true, bool accessible = true, bool full = false)
+        {
+            return APManage.SlotData.levels
+                .Select(x => Level(x, full))
+                .Sum(x => x.Hinteds(inLogic, accessible));
+        }
+
+        internal struct StringStorage {
+            public string cS;
+            public int cN;
+            public string hS;
+            public int hN;
+
+            public readonly AxKReplacementPair[] Replacements => [
+                new AxKReplacementPair("{CHK}", cS),
+                new AxKReplacementPair("{HNT}", hS),
+                new AxKReplacementPair("{CN}", cN),
+                new AxKReplacementPair("{HN}", hN),
+            ];
+        }
+
+        internal static string GetStrings(out StringStorage strings, LevelData level = null, MissionData mission = null, bool force = false, bool hints = true)
+        {
+            strings = new();
             if (!loaded)
                 return "";
-
-            if (level)
-                checks = Level(level).Checks();
-            else if (mission)
-                checks = MissionChecks(mission);
-            else
-                checks = AllChecks();
-
             if (display.Value < LogicDisplay.Full && !force)
                 return "";
 
-            if (checks == 0)
-                return "NWArchipelago/CHECKS_NONE";
-            if (checks == 1)
-                return "NWArchipelago/CHECKS_ONE";
-            return "NWArchipelago/CHECKS_SOME";
+            if (level) {
+                var logic = Level(level);
+                strings.cN = logic.Checks();
+                strings.hN = logic.Hinteds();
+            }
+            else if (mission) {
+                strings.cN = MissionChecks(mission);
+                strings.hN = MissionHinted(mission);
+            }
+            else {
+                strings.cN = AllChecks();
+                strings.hN = AllHinted();
+            }
+
+            if (strings.cN == 0)
+                strings.cS = "NWArchipelago/CHECKS_NONE";
+            else if (strings.cN == 1)
+                strings.cS = "NWArchipelago/CHECKS_ONE";
+            else
+                strings.cS = "NWArchipelago/CHECKS_SOME";
+
+            if (strings.hN == 0)
+                strings.hS = "NWArchipelago/HINTS_NONE";
+            else if (strings.hN == 1)
+                strings.hS = "NWArchipelago/HINTS_ONE";
+            else
+                strings.hS = "NWArchipelago/HINTS_SOME";
+
+            // checks should take priority
+            if (strings.hN == 0 || !hints)
+                return strings.cS;
+            if (strings.cN == 0)
+                return strings.hS;
+            return "NWArchipelago/CHECK_HINT_COMBO";
         }
 
-        internal bool IsHinted()
+        static Color lowLight = new(0.8f, 0.8f, 0.8f);
+        static Color yellowLight = new Color32(222, 213, 169, 255);
+        static Color greenLight = new Color32(230, 255, 230, 255);
+        static Color blueLight = new Color32(153, 218, 255, 255);
+
+        internal static Color GetColor(MissionData mission = null, LevelData level = null, MedalEnum medal = MedalEnum.Plus, bool gift = false, bool hints = true)
         {
-            var levelName = LocalizationManager.GetTranslation(level.GetLevelDisplayName(), overrideLanguage: "English");
+            bool inl;
+            bool outl;
+            bool hintl;
 
-            List<string> medals = ["Bronze", "Silver", "Gold", "Ace", "Dev"];
-            List<string> nameChecks = [
-                $"{levelName} Gift",
-                $"{levelName} Completion",
-            ];
-            medals.ForEach(medal => nameChecks.Add($"{levelName} {medal} Completion"));
+            if (level)
+            {
+                var logic = Level(level);
+                if (gift)
+                {
+                    inl = logic.CanGift();
+                    outl = logic.Full().CanGift();
+                    hintl = logic.GiftHinted();
+                }
+                else if (medal <= MedalEnum.Dev)
+                {
+                    inl = logic.CanGetMedal(medal);
+                    outl = logic.Full().CanGetMedal(medal);
+                    hintl = logic.MedalHinted(medal);
+                }
+                else
+                {
+                    inl = logic.Checks() > 0;
+                    outl = logic.Full().Checks() > 0;
+                    hintl = logic.Hinteds() > 0;
+                }
+            }
+            else if (mission)
+            {
+                inl = MissionChecks(mission) > 0;
+                outl = MissionChecks(mission, true) > 0;
+                hintl = MissionHinted(mission) > 0;
+            }
+            else
+            {
+                inl = AllChecks() > 0;
+                outl = AllChecks(true) > 0;
+                hintl = AllHinted() > 0;
+            }
 
-            return nameChecks.Any(
-                name => APManage.IsHinted(
-                    APManage.session.Locations.GetLocationIdFromName(
-                        APManage.session.ConnectionInfo.Game,
-                        name
-                    ),
-                    false
-                )
-            );
+            if (!outOfLogic.Value)
+                outl = false;
+
+            if (hintl && hints)
+                return blueLight;
+            if (inl)
+                return greenLight;
+            if (outl)
+                return yellowLight;
+            return lowLight;
         }
 
         Logic Clear() {
