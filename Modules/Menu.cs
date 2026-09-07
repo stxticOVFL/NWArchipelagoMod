@@ -129,8 +129,7 @@ namespace NWArchipelago.Modules
                 hintMissionCache.hubContentData = Campaign.campaign.missionData[0].hubContentData;
             }
 
-
-            show = Logic.hintDisplay.Value >= Logic.HintDisplay.Always;
+            show = Logic.hintDisplay.Value >= Logic.HintDisplay.Always && Logic.hints.Value;
             var levels = APManage.SlotData.levels.FindAll(x => Logic.Level(x).Hinteds(false, false) > 0);
             show |= Logic.hintDisplay.Value >= Logic.HintDisplay.WhenAny && levels.Any();
             show |= Logic.hintDisplay.Value >= Logic.HintDisplay.WhenAvailable && levels.Any(x => Logic.Level(x).Hinteds() > 0);
@@ -181,6 +180,7 @@ namespace NWArchipelago.Modules
             if (MainMenu.Instance().GetCurrentState() != MainMenu.State.Title)
             {
                 // this won't work right without it for some reason
+                MainMenu.Instance().SetState(MainMenu.State.None);
                 MainMenu.Instance().PauseGame(true, animate: false);
                 MainMenu.Instance().PauseGameNoStateChange(false);
                 Game.Instance.QuitToTitle();
@@ -537,9 +537,6 @@ namespace NWArchipelago.Modules
 
             SetButtonColor(__instance._button, Logic.GetColor(level: ld));
 
-            // Only use blue hint color if the level is hinted, has checks available and is not in the hint mission
-            if (Logic.Level(ld).IsHinted() && checks > 0 && currentMissionID != HINTED_MISSION_ID)
-                SetButtonColor(__instance._button, blueLight);
 
             if (APManage.SlotData.unlockMethod == APManage.UnlockMethod.Levels)
                 __instance.SetLocked(!Campaign.unlockedLevels.Contains(ld.levelIntegerID));
