@@ -269,6 +269,30 @@ namespace NWArchipelago.Objects
 
         internal Logic Full(bool full = true) => Level(level, full);
 
+        internal static int MissionHinted(MissionData mission, bool andAvailable = false, bool full = false)
+        {
+            return mission.levels
+                .Select(x => Level(x, full))
+                .Count(x =>
+                {
+                    bool hinted = x.IsHinted();
+
+                    return andAvailable ? hinted && x.CanAccessLevel() : hinted;
+                });
+        }
+
+        internal static int AllHinted(bool andAvailable = false, bool full = false)
+        {
+            return APManage.SlotData.levels
+                .Select(x => Level(x, full))
+                .Count(x =>
+                {
+                    bool hinted = x.IsHinted();
+
+                    return andAvailable ? hinted && x.CanAccessLevel() : hinted;
+                });
+        }
+
         internal static int MissionChecks(MissionData mission, bool full = false)
         {
             if (SaveHandler.archiSaveData.neonRank < mission.medalsRequired)
@@ -425,6 +449,28 @@ namespace NWArchipelago.Objects
             giftLogic.Clear();
 
             return this;
+        }
+
+        internal bool IsHinted()
+        {
+            var levelName = LocalizationManager.GetTranslation(level.GetLevelDisplayName(), overrideLanguage: "English");
+
+            List<string> medals = ["Bronze", "Silver", "Gold", "Ace", "Dev"];
+            List<string> nameChecks = [
+                $"{levelName} Gift",
+                $"{levelName} Completion",
+            ];
+            medals.ForEach(medal => nameChecks.Add($"{levelName} {medal} Completion"));
+
+            return nameChecks.Any(
+                name => APManage.IsHinted(
+                    APManage.session.Locations.GetLocationIdFromName(
+                        APManage.session.ConnectionInfo.Game,
+                        name
+                    ),
+                    false
+                )
+            );
         }
 
 #pragma warning disable CS0649

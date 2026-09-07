@@ -537,6 +537,10 @@ namespace NWArchipelago.Modules
 
             SetButtonColor(__instance._button, Logic.GetColor(level: ld));
 
+            // Only use blue hint color if the level is hinted, has checks available and is not in the hint mission
+            if (Logic.Level(ld).IsHinted() && checks > 0 && currentMissionID != HINTED_MISSION_ID)
+                SetButtonColor(__instance._button, blueLight);
+
             if (APManage.SlotData.unlockMethod == APManage.UnlockMethod.Levels)
                 __instance.SetLocked(!Campaign.unlockedLevels.Contains(ld.levelIntegerID));
         }
