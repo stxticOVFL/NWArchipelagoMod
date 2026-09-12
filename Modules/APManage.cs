@@ -3,6 +3,7 @@ using System.Net.WebSockets;
 using System.Reflection;
 using System.Reflection.Emit;
 using Archipelago.MultiClient.Net;
+using Archipelago.MultiClient.Net.BounceFeatures.DeathLink;
 using Archipelago.MultiClient.Net.Enums;
 using Archipelago.MultiClient.Net.Helpers;
 using Archipelago.MultiClient.Net.Models;
@@ -16,6 +17,8 @@ using UnityEngine;
 using UnityEngine.Networking;
 using static System.Text.Encoding;
 using static NeonLite.Modules.CommunityMedals;
+using NeonLite.Modules.UI.Status;
+using TMPro;
 
 namespace NWArchipelago.Modules
 {
@@ -51,6 +54,9 @@ namespace NWArchipelago.Modules
             Patching.AddPatch(typeof(MainMenu), "OnCompleteSidequest", DontSidequest, Patching.PatchTarget.Prefix);
 
             Patching.AddPatch(typeof(LevelStats), "SetCollectibleFound", OnCollectible, Patching.PatchTarget.Prefix);
+
+            Patching.AddPatch(typeof(MechController), "Die", CheckDeathLink, Patching.PatchTarget.Prefix);
+            Patching.AddPatch(typeof(PlayerUI), "OnPlayerDie", SetDeathText, Patching.PatchTarget.Postfix);
         }
 
         static IEnumerable<CodeInstruction> FetchTypes(IEnumerable<CodeInstruction> instructions)
@@ -75,7 +81,6 @@ namespace NWArchipelago.Modules
         }
 
         internal static ArchipelagoSession session;
-        internal static bool deathlink;
 
         internal static Hint[] hints;
 
@@ -108,6 +113,33 @@ namespace NWArchipelago.Modules
             public static int execution;
 
             public static Goal winCondition;
+
+            public static class DeathL {
+                public static bool enabled;
+                public static int amnesty;
+                public static int resets;
+
+                internal static TextMeshProUGUI text;
+                internal static DeathLinkService service;
+                internal static DeathLink recent;
+
+                internal static void UpdateText() {
+                    if (!text) {
+                        text = StatusText.i.MakeText("DeathLink", "", -10000);
+                        text.fontSize += 8;
+                        text.fontStyle = FontStyles.Bold | FontStyles.SmallCaps;
+                        text.color = UnityEngine.Color.white;
+                    }
+
+                    text.gameObject.SetActive(amnesty + resets > 1);
+
+                    // TODO: locale?
+                    if (resets > 0)
+                        text.text = $"{SaveHandler.archiSaveData.deathAmn}/{amnesty} Deaths / {SaveHandler.archiSaveData.resetAmn}/{resets} Resets";
+                    else
+                        text.text = $"{SaveHandler.archiSaveData.deathAmn}/{amnesty} Deaths";
+                }
+            }
         }
 
         internal enum ConnectStatus
@@ -441,6 +473,22 @@ namespace NWArchipelago.Modules
 
             SlotData.winCondition = (Goal)(int)options["goal"];
 
+            SlotData.DeathL.enabled = (bool)options["death_link"];
+            if (SlotData.DeathL.enabled) {
+                SlotData.DeathL.amnesty = (int)options["death_link_amn"];
+                SlotData.DeathL.resets = (int)options["death_link_res"];
+
+                var service = session.CreateDeathLinkService();
+                service.OnDeathLinkReceived += ReceiveDeathLink;
+                service.EnableDeathLink();
+
+                SlotData.DeathL.service = service;
+            }
+
+            // track hints early
+            hints = [];
+            session.DataStorage.TrackHints(OnHintsReceived);
+
             NWArchipelago.Log.DebugMsg("download/load logic");
 
             using (var req = UnityWebRequest.Get(Logic.URL))
@@ -498,6 +546,9 @@ namespace NWArchipelago.Modules
                 SaveHandler.archiSaveData.neonRank = currRank;
 
                 Campaign.HandleSaveCData();
+
+                if (SlotData.DeathL.enabled)
+                    SlotData.DeathL.UpdateText();
             }, info);
 
             NWArchipelago.Log.DebugMsg("items recieved checks");
@@ -518,9 +569,6 @@ namespace NWArchipelago.Modules
             session.Socket.PacketReceived -= EnableCampaignCheck;
             if (!doCampaignCheck)
                 doCampaignCheck = true;
-
-            // Track Hints
-            session.DataStorage.TrackHints(OnHintsReceived);
 
             NWArchipelago.Log.DebugMsg("set status");
             SetConnectStatus(ConnectStatus.Connected);
@@ -544,6 +592,8 @@ namespace NWArchipelago.Modules
 
             Campaign.HandleSaveCData(true);
         }
+
+        internal static void Disconnect() => session?.Socket.DisconnectAsync();
 
         internal static void OnHintsReceived(Hint[] hint)
         {
@@ -577,6 +627,73 @@ namespace NWArchipelago.Modules
                 return;
 
             SendGiftComplete(level);
+        }
+
+        static bool ignoreDeath = false;
+        static void CheckDeathLink(MechController __instance, bool restartImmediately, bool playRestartSound) {
+            if (!SlotData.DeathL.enabled)
+                return;
+            if (!__instance.GetIsAlive())
+                return;
+            if (ignoreDeath) {
+                ignoreDeath = false;
+                return;
+            }
+
+            if (restartImmediately)
+            {
+                if (!playRestartSound)
+                    return;
+                if (SlotData.DeathL.resets == 0)
+                    return;
+                SaveHandler.archiSaveData.resetAmn++;
+                SaveHandler.archiSaveData.resetAmn %= SlotData.DeathL.resets;
+                if (SaveHandler.archiSaveData.resetAmn == 0)
+                    SendDeathLink("{0} reset too many times.");
+            }
+            else
+            {
+                SaveHandler.archiSaveData.deathAmn++;
+                SaveHandler.archiSaveData.deathAmn %= SlotData.DeathL.amnesty;
+                if (SaveHandler.archiSaveData.deathAmn == 0)
+                    SendDeathLink("{0} died.");
+            }
+            SlotData.DeathL.UpdateText();
+            GameDataManager.SaveGame();
+        }
+
+        internal static void SendDeathLink(string reason = null)
+        {
+            reason ??= "{0} died.";
+            reason = string.Format(reason, Settings.slotname.Value);
+
+            SlotData.DeathL.service.SendDeathLink(new DeathLink(Settings.slotname.Value, reason));
+        }
+        static void ReceiveDeathLink(DeathLink dl)
+        {
+            if (!RM.mechController)
+                return;
+            if (!RM.mechController.GetIsAlive())
+                return;
+
+            SlotData.DeathL.recent = dl;
+            ignoreDeath = true;
+            RM.mechController.Die();
+        }
+
+        static void SetDeathText(PlayerUI __instance)
+        {
+            if (SlotData.DeathL.recent == null)
+                return;
+
+            string key = GameInput.Instance.GetKey(GameInput.GameActions.Restart, __instance.failure_Localized.GetFontSize(), -1, 120, -0.1f, false);
+            __instance.failure_Localized.SetKey("NWArchipelago/PLAYERUI_DL_RESTART", [
+                new("{REASON}", SlotData.DeathL.recent.Cause ?? $"{SlotData.DeathL.recent.Source} died", false),
+                new("{KEY}", key, key.Contains("Interface")),
+            ]);
+            __instance.failure.GetComponent<AxKLocalizedText>().SetKey("NWArchipelago/PLAYERUI_DEATHLINKED");
+
+            SlotData.DeathL.recent = null;
         }
     }
 }

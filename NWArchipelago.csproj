@@ -3,7 +3,7 @@
         <!-- The name of the mod -->
         <NWName>NWArchipelago</NWName>
         <NWAuthor>stxticOVFL</NWAuthor>
-        <NWVersion>0.0.9</NWVersion>
+        <NWVersion>0.1.0</NWVersion>
         <!-- The name of the *DLL* -->
         <AssemblyName>$(NWName)</AssemblyName>
 
@@ -71,8 +71,10 @@
 
         <!-- Add further references by using $(NWManaged) and $(NWDirectory): -->
         <Reference Include="$(NWManaged)/Unity.TextMeshPro.dll" Private="false" />
+        <Reference Include="$(NWManaged)/Unity.InputSystem.dll" Private="false" />
         <Reference Include="$(NWManaged)/UnityEngine.UI.dll" Private="false" />
         <Reference Include="$(NWManaged)/UnityEngine.UIModule.dll" Private="false" />
+        <Reference Include="$(NWManaged)/UnityEngine.AnimationModule.dll" Private="false" />
         <Reference Include="$(NWManaged)/UnityEngine.AssetBundleModule.dll" Private="false" />
         <Reference Include="$(NWManaged)/UnityEngine.UnityWebRequestModule.dll" Private="false" />
     </ItemGroup>

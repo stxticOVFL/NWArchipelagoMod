@@ -62,7 +62,8 @@ namespace NWArchipelago.Modules
             Patching.AddPatch(typeof(MechController), "OnCollectAmmo", DirectAmmo, Patching.PatchTarget.Prefix);
         }
 
-        internal static void Clear() {
+        internal static void Clear()
+        {
             fires.Clear();
             discards.Clear();
             cardPickups.Clear();
@@ -332,14 +333,50 @@ namespace NWArchipelago.Modules
             return true;
         }
 
-        static void CardShowcaseForce(PlayerCardData card)
+        static bool CardShowcaseForce(PlayerCardData card)
         {
+            var level = Game.Instance.GetCurrentLevel();
+            if (level.isSidequest && card.consumableType == PlayerCardData.ConsumableType.GreenMemoryItem)
+            {
+                // we actually wanna do our own thang.
+                MainMenu.Instance().SetItemShowcaseCard(card, delegate
+                {
+                    var ld = Campaign.campaign.missionData
+                        .SelectMany(x => x.levels)
+                        .Where(x => x.collectibleGiftForCharacter?.ID == "GREEN")
+                        .First(x => x.collectiblePortalData.differentLevelData.levelID == level.levelID);
+
+                    if (!GameDataManager.levelStats[ld.levelID].HasCollectibleBeenFound())
+                    {
+                        GameDataManager.OnGiftCollect("GREEN");
+                        GameDataManager.OnCollectibleCollect(ld);
+                        GameDataManager.levelStats[ld.levelID].SetCollectibleFound();
+                        GameDataManager.SaveLevelStats();
+                        if (!GameDataManager.saveData.playerAchievementData.gotcoin)
+                        {
+                            GameDataManager.saveData.playerAchievementData.gotcoin = true;
+                            GameDataManager.SaveGame();
+                        }
+                        Achievements.SyncGetCoinAchievement(true);
+                        GameDataManager.SaveGame();
+                    }
+
+                    Game.Instance.PlayLevel(ld, true, true);
+                });
+                return false;
+            }
+
             if (tutorials.Value)
-                return;
+                return true;
 
             if (GameDataManager.cardShowcase.ContainsKey(card.cardID))
                 GameDataManager.cardShowcase[card.cardID] = true;
+            else
+                GameDataManager.cardShowcase.Add(card.cardID, true);
+
+            return true;
         }
+
         static void ForceStaging(MechController __instance, ref Action __result)
         {
             if (__result == null)
@@ -350,7 +387,6 @@ namespace NWArchipelago.Modules
                 __instance.Die(true);
             };
         }
-
 
         static readonly string[] NONAMMO = [
             "KATANA",

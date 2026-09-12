@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using UnityEngine;
 using static NeonLite.Helpers;
 using NeonLite.Modules;
+using TMPro;
 
 namespace NWArchipelago
 {
@@ -51,10 +52,11 @@ namespace NWArchipelago
                 abload.completed += _ =>
                 {
                     bundle = abload.assetBundle;
+                    Menu.apIcons = bundle.LoadAsset<TMP_SpriteAsset>("Assets/Prefabs/APIcon/APicon.asset");
                 };
             }
 
-            const string URL = "https://raw.githubusercontent.com/stxticOVFL/NWArchipelagoMod/main/Resources/locale.csv";
+            const string URL = null;// "https://raw.githubusercontent.com/stxticOVFL/NWArchipelagoMod/main/Resources/locale.csv";
             LC = Localization.GetLocale_Stream("NWArchipelago", Localization.Reader_CSVStream,
                 Resources.locale.GetStream(), URL);
         }
@@ -107,8 +109,9 @@ namespace NWArchipelago
     public static class Settings
     {
         public const string h = "Archipelago";
+#if DEBUG
         internal static MelonPreferences_Entry<bool> debug;
-
+#endif
         internal static MelonPreferences_Entry<bool> enabled;
 
         internal static MelonPreferences_Entry<string> ip;

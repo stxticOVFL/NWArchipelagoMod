@@ -1,6 +1,7 @@
 
 using System.Collections;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Archipelago.MultiClient.Net.Enums;
 using HarmonyLib;
 using I2.Loc;
@@ -77,9 +78,17 @@ namespace NWArchipelago.Modules
             Patching.AddPatch(typeof(GameData), "GetMission", GetMissionOverride, Patching.PatchTarget.Prefix);
             Patching.AddPatch(typeof(MainMenu), "SelectMission", SelectMissionOverride, Patching.PatchTarget.Prefix);
             Patching.AddPatch(typeof(GameData), "GetLevelInformation", GetLevelInformationOverride, Patching.PatchTarget.Postfix);
+            Patching.AddPatch(typeof(MainMenu), "OnPressButtonJobArchive", SetGreenCheck, Patching.PatchTarget.Prefix);
 
             Patching.AddPatch(typeof(MenuScreen), "LoadButtons", PreFasterButtons, Patching.PatchTarget.Prefix);
             Patching.AddPatch(typeof(MenuScreen), "LoadButtons", PostFasterButtons, Patching.PatchTarget.Postfix);
+
+            Patching.AddPatch(typeof(MainMenu), "SetState", DisconnectTitle, Patching.PatchTarget.Postfix);
+            Patching.AddPatch(typeof(MainMenu), "OnPressBackButton", OverrideBack, Patching.PatchTarget.Prefix);
+            Patching.AddPatch(typeof(MainMenu), "OnPressButtonQuitLevel", OverrideQuitLevel, Patching.PatchTarget.Prefix);
+
+            Patching.AddPatch(typeof(MenuScreenResults), "OnSetVisible", ManageButtonsResults, Patching.PatchTarget.Postfix);
+            Patching.AddPatch(typeof(MenuScreenPause), "OnSetVisible", ManageButtonsPause, Patching.PatchTarget.Postfix);
 
             APManage.OnStatusChanged += ForceTitle;
         }
@@ -88,10 +97,11 @@ namespace NWArchipelago.Modules
 
         internal static string currentMissionID = "";
 
+        internal static TMP_SpriteAsset apIcons;
+
         // Listen to the SelectMission method and save the current mission ID to a variable
         static bool SelectMissionOverride(string missionID)
         {
-            NWArchipelago.Log.DebugMsg($"Selected mission: {missionID}");
             currentMissionID = missionID;
 
             // If we're in the hint mission but we don't have any more hinted levels available / playable
@@ -106,9 +116,26 @@ namespace NWArchipelago.Modules
             return true;
         }
 
-        // Override the level information when we are in the hinted mission
+        static bool greenCheck = false;
+        static void SetGreenCheck() => greenCheck = true;
+
         static void GetLevelInformationOverride(ref LevelInformation __result)
         {
+            // if we're a green level, actually override and fetch the level we belong to
+            if (greenCheck && __result.levelID.Contains("GREEN_MEMORY"))
+            {
+                var id = __result.levelID;
+                var gd = Game.Instance.GetGameData();
+                __result = gd.GetLevelInformation(
+                    Campaign.campaign.missionData
+                        .SelectMany(x => x.levels)
+                        .Where(x => x.collectibleGiftForCharacter?.ID == "GREEN")
+                        .First(x => x.collectiblePortalData.differentLevelData.levelID == id)
+                );
+            }
+            greenCheck = false;
+
+            // Override the level information when we are in the hinted mission
             if (currentMissionID == HINTED_MISSION_ID && __result != null)
             {
                 __result.mission = 0;
@@ -175,17 +202,74 @@ namespace NWArchipelago.Modules
 
         internal static int previousRank;
 
-        static void ForceTitle(APManage.ConnectStatus _)
+        static void DisconnectTitle(MainMenu.State newState)
+        {
+            NWArchipelago.Log.DebugMsg(newState);
+            if (newState == MainMenu.State.Title)
+                APManage.Disconnect();
+        }
+        internal static void ForceTitle(APManage.ConnectStatus status)
         {
             if (MainMenu.Instance().GetCurrentState() != MainMenu.State.Title)
             {
                 // this won't work right without it for some reason
-                MainMenu.Instance().SetState(MainMenu.State.None);
+                // none_nopause to force it to behave
+                MainMenu.Instance().SetState(MainMenu.State.None_NoPause);
                 MainMenu.Instance().PauseGame(true, animate: false);
                 MainMenu.Instance().PauseGameNoStateChange(false);
                 Game.Instance.QuitToTitle();
             }
+            else if (status == APManage.ConnectStatus.Connected)
+                LoadHub();
         }
+
+        static bool backButtonOk = true;
+        static bool OverrideBack(MainMenu __instance, MainMenu.State ____backButtonState)
+        {
+            if (____backButtonState == MainMenu.State.LocationExit)
+            {
+                backButtonOk ^= true;
+                if (!backButtonOk)
+                {
+                    __instance._popup.SetPopup("NWArchipelago/POPUP_DISCONNECT",
+                        __instance.OnPressBackButton,
+                        () => { backButtonOk = true; });
+                }
+                return backButtonOk;
+            }
+            return true;
+        }
+        static bool OverrideQuitLevel(MainMenu __instance)
+        {
+            __instance._popup.SetPopup("NWArchipelago/POPUP_DISCONNECT",
+                APManage.Disconnect,
+                () => { });
+
+            return false;
+        }
+
+        static void ManageButtonsResults(MenuScreenResults __instance)
+        {
+            __instance._buttonReturnToHub.gameObject.SetActive(false);
+            __instance._buttonReturnToHubTop.gameObject.SetActive(false);
+            // TODO: do stuff with the play next button? for now, just disable it
+            __instance._buttonContine.gameObject.SetActive(false);
+        }
+        static void ManageButtonsPause(MenuScreenPause __instance, bool animate)
+        {
+            __instance._buttonReturnToHub.gameObject.SetActive(false);
+            __instance._buttonArchive.SetActive(true); //force
+            // TODO: do stuff with the play next button? for now, just disable it
+            __instance._buttonPlayNextLevel.gameObject.SetActive(false);
+
+            if (animate)
+            {
+                __instance.LoadButtons();
+                return;
+            }
+            __instance.ForceButtonsVisible();
+        }
+
 
         static bool SetupTitle(MenuScreenTitle __instance)
         {
@@ -199,6 +283,8 @@ namespace NWArchipelago.Modules
             __instance.quitButton.SetActive(true);
             __instance.time.gameObject.SetActive(false);
 
+            TextMeshProUGUI t;
+
             switch (APManage.ConnectionStatus)
             {
                 case APManage.ConnectStatus.Failed:
@@ -206,6 +292,8 @@ namespace NWArchipelago.Modules
                     __instance.newGameButton.SetActive(true);
                     __instance.newGameButton.GetComponent<MenuButtonHolder>().ShouldBeInteractable = true;
                     __instance.newGameButton.GetComponentInChildren<AxKLocalizedText>().SetKey("NWArchipelago/BUTTON_CONNECT");
+                    t = __instance.newGameButton.GetComponentInChildren<TextMeshProUGUI>();
+                    t.spriteAsset = apIcons;
                     __instance.continueGameButton.SetActive(false);
 
                     break;
@@ -218,6 +306,7 @@ namespace NWArchipelago.Modules
                     break;
                 case APManage.ConnectStatus.Connected:
                     {
+                        // so this shouldn't actually show up anymore but im gonna keep it here anyway
                         var receive = APManage.SlotData.unlockMethod switch
                         {
                             APManage.UnlockMethod.Ranks => "NWArchipelago/RECIEVED_RANKS",
@@ -226,6 +315,9 @@ namespace NWArchipelago.Modules
                         };
                         __instance.newGameButton.SetActive(false);
                         __instance.continueGameButton.SetActive(true);
+                        t = __instance.continueGameButton.GetComponentInChildren<TextMeshProUGUI>();
+                        t.spriteAsset = apIcons;
+
                         __instance.continueGameButton.GetComponentInChildren<AxKLocalizedText>()
                             .SetKey("NWArchipelago/BUTTON_PLAY_V2",
                                 replacementPairs: [
@@ -248,9 +340,15 @@ namespace NWArchipelago.Modules
                         b.GetComponent<MenuButtonHolder>().LoadButton(0.05f * i++);
                 }
 
-                var qbh = __instance.quitButton.GetComponent<MenuButtonHolder>();
-                qbh.ResetButton();
-                qbh.ForceVisible();
+                foreach (var b in __instance.buttonsToLoad)
+                {
+                    if (b.gameObject.activeSelf && !b.animatorRef.GetBool("LoadIn") && !titleLUL.Contains(b.gameObject))
+                        b.LoadButton(0.05f * i++);
+                }
+
+                // var qbh = __instance.quitButton.GetComponent<MenuButtonHolder>();
+                // qbh.ResetButton();
+                // qbh.ForceVisible();
             }
             noAnimate = false;
 
@@ -299,12 +397,33 @@ namespace NWArchipelago.Modules
             return false;
         }
 
+        static readonly FieldInfo currentState = NeonLite.Helpers.Field(typeof(MainMenu), "_currentState");
+        static readonly FieldInfo lastState = NeonLite.Helpers.Field(typeof(MainMenu), "_lastMenuState");
+        static readonly MethodInfo bgmanUpdate = NeonLite.Helpers.Method(typeof(LocationBGManager), "Update");
         static bool LoadHub()
         {
             LevelRush.SetLevelRush(LevelRush.LevelRushType.None, heavenRush: false, shuffleLevelOrder: false);
             MainMenu.Instance()._screenLoading.SetLoadingType(MenuScreenLoading.LoadingType.Normal);
 
-            Game.Instance.PlayLevel("HUB_HEAVEN", fromArchive: false);
+            Game.Instance.PlayLevel("HUB_HEAVEN", fromArchive: false, delegate
+            {
+                var mm = MainMenu.Instance();
+                mm._screenLoading.SetLoadingType(MenuScreenLoading.LoadingType.Normal);
+                currentState.SetValue(mm, MainMenu.State.None);
+                lastState.SetValue(mm, MainMenu.State.Location); // force the states
+                mm.EnterLocation(Campaign.portal);
+                mm.CurrentActiveMenuScreen = mm._screenLevel;
+                mm.CurrentActiveMenuScreen.TrySelectActiveElementByPriority();
+
+                // configure the bg
+                var bg = mm._screenLocation._bgManager;
+                bg.SetBGActive(true);
+                bg.AnimateLocationIn();
+                bgmanUpdate.Invoke(bg, null);
+                bg.springCameraOrthoSize.CurrentValue = bg.springCameraOrthoSize.TargetValue;
+                bg.springCameraPosition.CurrentPos = bg.springCameraPosition.TargetValue;
+                bgmanUpdate.Invoke(bg, null);
+            });
             APManage.session.SetClientState(ArchipelagoClientState.ClientPlaying);
             return false;
         }
@@ -414,7 +533,8 @@ namespace NWArchipelago.Modules
 
             var setupnav = Helpers.Method(typeof(MenuScreenLevel), "SetupNavigation");
 
-            if (sortLevel.Value) {
+            if (sortLevel.Value)
+            {
                 // order by:
                 // level access, out of logic checks, in logic checks, hint count
                 levels = [.. levels
@@ -537,9 +657,10 @@ namespace NWArchipelago.Modules
 
             SetButtonColor(__instance._button, Logic.GetColor(level: ld));
 
-
             if (APManage.SlotData.unlockMethod == APManage.UnlockMethod.Levels)
                 __instance.SetLocked(!Campaign.unlockedLevels.Contains(ld.levelIntegerID));
+            if (!ld.isSidequest && !APManage.SlotData.gifts)
+                __instance._loreHolder.SetActive(false);
         }
 
         static float preButtonSpeed;
@@ -550,7 +671,6 @@ namespace NWArchipelago.Modules
             preButtonSpeed = ___buttonLoadDelay;
             ___buttonLoadDelay = Math.Min(___buttonLoadDelay, .5f / __instance.buttonsToLoad.Count);
         }
-
         static void PostFasterButtons(MenuScreen __instance, ref float ___buttonLoadDelay)
         {
             if (__instance is not MenuScreenLevel)
@@ -563,9 +683,10 @@ namespace NWArchipelago.Modules
         {
             if (Logic.display.Value < Logic.LogicDisplay.Full || !Logic.HasLogic(____currentLevel))
                 return;
-            __instance._levelEnvironmentNameText.text = LocalizationManager
-                .GetTranslation("NWArchipelago/CHECKS_REMAINING")
-                .Replace("{CHK}", LocalizationManager.GetTranslation(Logic.GetStrings(out var s, level: ____currentLevel, hints: false)))
+            __instance._levelEnvironmentNameText.text =
+                NWArchipelago.LC.T("CHECKS_REMAINING")
+                .Replace("{CHK}", LocalizationManager.GetTranslation(
+                    Logic.GetStrings(out var s, level: ____currentLevel, hints: false)))
                 .Replace("{CN}", s.cN.ToString());
         }
 
@@ -577,10 +698,36 @@ namespace NWArchipelago.Modules
 
         static readonly MethodInfo styleTime = Helpers.Method(typeof(LevelInfo), "StyleMedalTime");
 
+        struct MedalSlot(Image m, TextMeshProUGUI t, GameObject bg)
+        {
+            public Image medal = m;
+            public TextMeshProUGUI text = t;
+            public GameObject bg = bg;
+
+            public readonly void SetVis(bool vis)
+            {
+                medal.enabled = vis;
+                text.enabled = vis;
+                if (!vis)
+                {
+                    bg.GetComponentsInChildren<Image>(true)
+                        .Do(x => x.color = new(0, 0, 0, 0.6f));
+                    bg.gameObject.SetActive(true);
+                    bg.transform.SetAsLastSibling();
+                }
+            }
+        }
+
+        static readonly ConditionalWeakTable<LevelInfo, MedalSlot[]> slots = new();
+        static Material defaultCrysMat;
+
         static void LevelInfoSetLevel(LevelInfo __instance, LevelData level)
         {
             if (!level || !Logic.HasLogic(level))
                 return;
+
+            Image[] stamps = __instance.devStamp.GetComponentsInChildren<Image>();
+            if (stamps.Length < 3) return;
 
             var isSidequest = level.isSidequest || level.levelID.Contains("SIDEQUEST");
 
@@ -623,27 +770,45 @@ namespace NWArchipelago.Modules
 
             // handle GhostsEverywhere code
             Image[] dotteds = insight.GetComponentsInChildren<Image>();
-            dotteds[0].enabled = !level.isSidequest;
+            dotteds[0].enabled = !level.isSidequest && APManage.SlotData.gifts;
             dotteds[1].enabled = !level.isSidequest;
 
+            if (!slots.TryGetValue(__instance, out var islots))
+            {
+                Image aceImage = __instance._aceMedalBG.transform.parent.Find("Medal Icon").GetComponent<Image>();
+                Image goldImage = __instance._goldMedalBG.transform.parent.Find("Medal Icon").GetComponent<Image>();
+                Image silverImage = __instance._silverMedalBG.transform.parent.Find("Medal Icon").GetComponent<Image>();
 
-            var medalEarned = GetMedalIndex(level.levelID);
-            var shift = medalEarned > (int)MedalEnum.Silver && APManage.SlotData.medals.DefaultIfEmpty(MedalEnum.Bronze).Max() >= MedalEnum.Dev;
-
-            Image aceImage = __instance._aceMedalBG.transform.parent.Find("Medal Icon").GetComponent<Image>();
-            Image goldImage = __instance._goldMedalBG.transform.parent.Find("Medal Icon").GetComponent<Image>();
-            Image silverImage = __instance._silverMedalBG.transform.parent.Find("Medal Icon").GetComponent<Image>();
+                islots = [
+                    new(silverImage, __instance._silverMedalTime, __instance._silverMedalBG),
+                    new(goldImage, __instance._goldMedalTime, __instance._goldMedalBG),
+                    new(aceImage, __instance._aceMedalTime, __instance._aceMedalBG),
+                ];
+                slots.Add(__instance, islots);
+            }
 
             // still try to respect AdjustMaterial
-            Image[] stamps = __instance.devStamp.GetComponentsInChildren<Image>();
-            if (stamps.Length < 3) return;
 
             CommunityMedals.AdjustMaterial(stamps[1]);
             CommunityMedals.AdjustMaterial(stamps[2]);
 
-            CommunityMedals.AdjustMaterial(aceImage);
-            CommunityMedals.AdjustMaterial(goldImage);
-            CommunityMedals.AdjustMaterial(silverImage);
+            CommunityMedals.AdjustMaterial(islots[0].medal);
+            CommunityMedals.AdjustMaterial(islots[1].medal);
+            CommunityMedals.AdjustMaterial(islots[2].medal);
+
+            if (!defaultCrysMat)
+                defaultCrysMat = __instance._crystalHolderFilledImage.material;
+
+            CommunityMedals.AdjustMaterial(__instance._levelMedal);
+            if (level.isSidequest)
+                CommunityMedals.AdjustMaterial(__instance._crystalHolderFilledImage);
+            else
+                __instance._crystalHolderFilledImage.material = defaultCrysMat;
+
+            var medalEarned = GetMedalIndex(level.levelID);
+
+            __instance._crystalHolder.SetActive(level.isSidequest || APManage.SlotData.gifts);
+
 
             void SetTextColor(MedalEnum medal, TextMeshProUGUI text, GameObject bg = null, bool gift = false)
             {
@@ -694,45 +859,56 @@ namespace NWArchipelago.Modules
                 text.color = Color.HSVToRGB(h, s, v);
             }
 
+
             SetTextColor(MedalEnum.Bronze, __instance._crystalStateDescriptionText, __instance._crystalFillBG, gift: !isSidequest);
             SetTextColor(MedalEnum.Bronze, __instance._crystalStateCaptionText, gift: !isSidequest);
 
-            if (isSidequest || !shift)
-            {
-                aceImage.sprite = Medals[(int)MedalEnum.Ace];
-                goldImage.sprite = Medals[(int)MedalEnum.Gold];
-                silverImage.sprite = Medals[(int)MedalEnum.Silver];
-
-                SetTextColor(MedalEnum.Silver, __instance._silverMedalTime, __instance._silverMedalBG);
-                SetTextColor(MedalEnum.Gold, __instance._goldMedalTime, __instance._goldMedalBG);
-                SetTextColor(MedalEnum.Ace, __instance._aceMedalTime, __instance._aceMedalBG);
-
+            if (isSidequest)
                 return;
-            }
 
-            aceImage.sprite = Medals[(int)MedalEnum.Dev];
-            goldImage.sprite = Medals[(int)MedalEnum.Ace];
-            silverImage.sprite = Medals[(int)MedalEnum.Gold];
+            islots.Do(x => x.SetVis(false));
 
-            __instance._aceMedalBG.SetActive(medalEarned >= (int)MedalEnum.Dev);
-            __instance._goldMedalBG.SetActive(medalEarned >= (int)MedalEnum.Ace);
-            __instance._silverMedalBG.SetActive(medalEarned >= (int)MedalEnum.Gold);
+            var ordered = APManage.SlotData.medals
+                .OrderByDescending(x => x)
+                .ToArray();
+            var earnclamp = ordered
+                .Select(x => (int)x)
+                .DefaultIfEmpty(medalEarned)
+                .FirstOrDefault(x => x <= medalEarned);
+
+            earnclamp = Math.Min(earnclamp, (int)ordered.Take(3).Last());
+
+            var iter = ordered
+                .TakeWhile(x => (int)x >= earnclamp)
+                .Reverse()
+                .Take(3);
+            int i = 0;
 
             long[] communityTimes = medalTimes[level.levelID];
 
-            __instance._aceMedalTime.text = (string)styleTime.Invoke(__instance, [
-                Helpers.FormatTime(communityTimes[(int)MedalEnum.Dev] / 1000, true, '.', true),
-                medalEarned >= (int)MedalEnum.Dev]);
-            __instance._goldMedalTime.text = (string)styleTime.Invoke(__instance, [
-                Helpers.FormatTime(communityTimes[(int)MedalEnum.Ace] / 1000, true, '.', true),
-                medalEarned >= (int)MedalEnum.Ace]);
-            __instance._silverMedalTime.text = (string)styleTime.Invoke(__instance, [
-                Helpers.FormatTime(communityTimes[(int)MedalEnum.Gold] / 1000, true, '.', true),
-                medalEarned >= (int)MedalEnum.Gold]);
+            foreach (var m in iter)
+            {
+                var slot = islots[i++];
+                slot.SetVis(true);
 
-            SetTextColor(MedalEnum.Gold, __instance._silverMedalTime, __instance._silverMedalBG);
-            SetTextColor(MedalEnum.Ace, __instance._goldMedalTime, __instance._goldMedalBG);
-            SetTextColor(MedalEnum.Dev, __instance._aceMedalTime, __instance._aceMedalBG);
+                slot.medal.sprite = Medals[(int)m];
+                slot.bg.SetActive(medalEarned >= (int)m);
+
+                if (m == MedalEnum.Bronze)
+                {
+                    slot.text.text = (string)styleTime.Invoke(__instance, [
+                        NWArchipelago.LC.T("LEVELINFO_BRONZE"),
+                        medalEarned >= (int)m]);
+                }
+                else
+                {
+                    slot.text.text = (string)styleTime.Invoke(__instance, [
+                        Helpers.FormatTime(communityTimes[(int)m] / 1000, true, '.', true),
+                        medalEarned >= (int)m]);
+                }
+
+                SetTextColor(m, slot.text, slot.bg);
+            }
         }
 
 

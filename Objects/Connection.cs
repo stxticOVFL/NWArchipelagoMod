@@ -221,10 +221,19 @@ namespace NWArchipelago.Objects
             Wrapper.i.OnClose();
 
             // AP specific code lets ditch this joint
-            if (APManage.ConnectionStatus == APManage.ConnectStatus.Connected) {
+            if (APManage.ConnectionStatus == APManage.ConnectStatus.Connected)
+            {
                 // kick us into the title screen if we aren't already
                 APManage.SetConnectStatus(APManage.ConnectStatus.Idle);
             }
+
+            SaveHandler.allowed = false;
+            SaveHandler.archiSaveData = new();
+            Cards.Clear();
+            Campaign.unlockedLevels.Clear();
+            APManage.itemIndex = 0;
+            Menu.previousRank = 0;
+            APManage.SlotData.DeathL.text?.gameObject?.SetActive(false);
 
             Destroy(this);
         }
@@ -304,10 +313,6 @@ namespace NWArchipelago.Objects
 
             APManage.SetConnectStatus(APManage.ConnectStatus.Connecting);
 
-            Cards.Clear();
-            Campaign.unlockedLevels.Clear();
-            APManage.itemIndex = 0;
-
             try
             {
                 await APManage.PrepareItemChecks();
@@ -319,7 +324,7 @@ namespace NWArchipelago.Objects
 
                 var login = await APManage.session.LoginAsync(Settings.gameoverride.Value,
                     Settings.slotname.Value, ItemsHandlingFlags.AllItems, password: pass,
-                    tags: ["DeathLink"], version: new Version(0, 6, 6)).ConfigureAwait(false);
+                    tags: [], version: new Version(0, 6, 7)).ConfigureAwait(false);
 
                 if (login is LoginSuccessful win)
                 {

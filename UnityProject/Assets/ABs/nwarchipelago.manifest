@@ -1,12 +1,12 @@
 ManifestFileVersion: 0
-CRC: 1313503102
+CRC: 93596765
 Hashes:
   AssetFileHash:
     serializedVersion: 2
-    Hash: 7962d8f1a57d513f6fce26249349c69a
+    Hash: 45ba36dc46a10e0aac65fa8ec4f5ac0d
   TypeTreeHash:
     serializedVersion: 2
-    Hash: fffc16f6724fd3b336071667531dec8a
+    Hash: 14d0c4c67ef4bb60d0ab99c144945c09
 HashAppended: 0
 ClassTypes:
 - Class: 1
@@ -35,9 +35,13 @@ ClassTypes:
   Script: {fileID: 11500000, guid: 3ec3fff4c30a784cc8e5e77674c2c271, type: 3}
 - Class: 114
   Script: {fileID: 11500000, guid: e9859ddce8739ffafac91e4ce1fd9ab3, type: 3}
+- Class: 114
+  Script: {fileID: 11500000, guid: 84a92b25f83d49b9bc132d206b370281, type: 3}
 - Class: 115
   Script: {instanceID: 0}
 - Class: 128
+  Script: {instanceID: 0}
+- Class: 213
   Script: {instanceID: 0}
 - Class: 222
   Script: {instanceID: 0}
@@ -48,4 +52,5 @@ ClassTypes:
 SerializeReferenceClassIdentifiers: []
 Assets:
 - Assets/Prefabs/CanvasGroup.prefab
+- Assets/Prefabs/APIcon/APicon.asset
 Dependencies: []

@@ -97,6 +97,8 @@ namespace NWArchipelago.Modules
             internal class ArchipelagoData
             {
                 public int neonRank;
+                public int deathAmn;
+                public int resetAmn;
             }
 
             public ArchipelagoData apData = new();

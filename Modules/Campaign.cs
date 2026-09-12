@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using HarmonyLib;
 using NeonLite.Modules;
@@ -14,6 +15,7 @@ namespace NWArchipelago.Modules
         static bool active = true;
 
         internal const string CAMPAIGN_ID = "C_ARCHIPELAGO";
+        internal const string GCAMPAIGN_ID = "C_ARCHIPELAGO_GREENS";
         internal const string OGCAMPAIGN_ID = "C_MAINQUEST";
         internal const string SQCAMPAIGN_ID = "C_SIDEQUESTS";
 
@@ -29,25 +31,38 @@ namespace NWArchipelago.Modules
             Patching.AddPatch(Helpers.Method(typeof(Game), "PlayLevel", [typeof(LevelData), typeof(bool), typeof(bool)]),
                 Helpers.HM(PreventPlayLD).SetPriority(Priority.First), Patching.PatchTarget.Prefix);
 
+            Patching.AddPatch(typeof(GameDataManager), "GetLevelStats", AddToMap, Patching.PatchTarget.Postfix);
             Patching.AddPatch(typeof(LevelStats), "GetCompleted", ForceComplete, Patching.PatchTarget.Prefix);
 
             Patching.AddPatch(typeof(CommunityMedals), "GetMedalIndex", SetCheckComplete, Patching.PatchTarget.Prefix);
             Type dtType = Type.GetType("NeonLite.Modules.UI.Deltatime, NeonLite");
             Patching.AddPatch(dtType, "PreWin", SetCheckComplete, Patching.PatchTarget.Prefix);
+        }
 
+        static readonly ConditionalWeakTable<LevelStats, LevelData> levelStatMap = new();
+        static void AddToMap(string levelID, LevelStats __result) {
+            if (levelStatMap.TryGetValue(__result, out var _))
+                return;
+            var gd = Game.Instance.GetGameData();
+            levelStatMap.Add(__result, gd.GetLevelData(levelID));
         }
 
         internal static bool checkComplete = false;
         internal static void SetCheckComplete() => checkComplete = true;
-        static bool ForceComplete(ref bool __result)
+        static bool ForceComplete(LevelStats __instance, ref bool __result)
         {
             if (checkComplete)
             {
                 checkComplete = false;
                 return true;
             }
-            __result = true;
-            return false;
+
+            // if not green
+            if (!levelStatMap.TryGetValue(__instance, out var d) || !d || !d.levelID.Contains("GREEN_MEMORY")) {
+                __result = true;
+                return false;
+            }
+            return true;
         }
 
         static bool MainObjectiveOverride(MenuResourcesDisplay __instance)
@@ -79,9 +94,13 @@ namespace NWArchipelago.Modules
 
         internal static HashSet<int> unlockedLevels = [];
         internal static CampaignData campaign;
+        internal static CampaignData campaignG;
 
         internal static CampaignData ogCampaignBak;
         internal static CampaignData sqCampaignBak;
+
+        static HubContentLocationData portalHcl;
+        internal static LocationData portal;
 
         internal static void MakeCampaign()
         {
@@ -147,10 +166,22 @@ namespace NWArchipelago.Modules
                 };
             }
 
+            if (!portal) {
+                portalHcl = GetFromRepeating("PORTAL");
+                portal = portalHcl.location;
+                portal.playHubActionOnExit = true;
+                HubAction disconnect = new()
+                {
+                    defaultState = HubAction.ActionState.Enabled,
+                    actionType = HubAction.ActionType.ReturnToHUB
+                };
+                disconnect.SetOnCompleteCallback(APManage.Disconnect);
+                portal.hubActionOnExit = disconnect;
+            }
+
             var hcd = ScriptableObject.CreateInstance<HubContentData>();
             hcd.locationData = [
-                GetFromRepeating("PORTAL"),
-                GetFromRepeating("CITYHALLOFFICE"),
+                portalHcl,
             ];
             hcd.actionPlaylist.actionPlaylist = [];
 
@@ -214,6 +245,20 @@ namespace NWArchipelago.Modules
 
                 SlotData.levels.Clear();
                 SlotData.levels.AddRange(campaign.missionData.SelectMany(x => x.levels));
+            }
+
+            if (!campaignG)
+            {
+                // just get the Greeeeeeeens man the Greeeeeeeeeeeeeeens
+                campaignG = UnityEngine.Object.Instantiate(sqCampaignBak);
+                campaignG.missionData.RemoveAll(x => !x.missionID.Contains("GREEN"));
+
+                campaignG.name = "Campaign_Archipelago_Greens";
+                campaignG.campaignID = GCAMPAIGN_ID;
+                // campaign.campaignType = CampaignData.CampaignType.Sidequest;
+                campaignG.campaignDisplayName = "Archipelago Green Levels";
+
+                gd.campaigns.Add(campaignG);
             }
         }
 

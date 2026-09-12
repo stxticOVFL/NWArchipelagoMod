@@ -29,8 +29,8 @@ namespace NWArchipelago.Objects
         internal enum HintDisplay
         {
             Never,
-            WhenAny,
             WhenAvailable,
+            WhenAny,
             Always,
         }
 
@@ -39,7 +39,8 @@ namespace NWArchipelago.Objects
 
         internal static MelonPreferences_Entry<bool> hints;
         internal static MelonPreferences_Entry<HintDisplay> hintDisplay;
-
+        
+        internal static MelonPreferences_Entry<bool> hueShift;
 
         static void Setup()
         {
