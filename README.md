@@ -7,7 +7,7 @@ A complete Archipelago randomizer client mod to interface with the [Neon White A
 - Trimmed down menu for focusing directly on the multiworld
 - Lots of small quality of life changes to make playing in Archipelago a lot smoother 
 
-## Mod Installation
+## Mod Installation/Configuration
 *For a complete setup guide, check the APWorld's [here.](https://github.com/Badhamknibbs/ArchipelagoNeonWhite/blob/main/worlds/neonwhite/docs/setup_en.md)*
 1. Download [MelonLoader](https://github.com/LavaGang/MelonLoader/releases/latest) and install **specifically v0.6.1** onto your `Neon White.exe`.
 2. Run the game once. This will create required folders.
@@ -16,7 +16,12 @@ A complete Archipelago randomizer client mod to interface with the [Neon White A
 4. Download `NWArchipelago.dll` from the [Releases page](https://github.com/stxticOVFL/NWArchipelago/releases/latest) and drop it in the `Mods` folder.
 5. Additionally download `Archipelago.MultiClient.Net.dll` from the release and drop that in the *`UserLibs`* folder.
     - If you've already done this, there's usually no need to do it again.
-
+6. Re-open the game and press **`F5`** (by default) to open the preferences menu.
+7. Enable the mod in the Archipelago category and input your IP address, port, slot name, and password in Archipelago/Connection.
+8. Relaunch your game one more time and enjoy!
+    - Click through the preferences menu settings to configure the tracker and other settings to your liking!
+    - Some settings only show up when the mod is enabled. 
+    
 ## Building & Contributing
 This project is based on [**NWCommon.**](https://github.com/stxticOVFL/NWCommon/tree/master?tab=readme-ov-file) 
 Follow the build instructions on the repository.
