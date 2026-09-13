@@ -13,7 +13,7 @@ A complete Archipelago randomizer client mod to interface with the [Neon White A
 2. Run the game once. This will create required folders.
 3. Download and follow the installation instructions for [NeonLite](https://github.com/Faustas156/NeonLite).
     - NeonLite is **required** for this mod.
-4. Download `NWArchipelago.dll` from the [Releases page](https://github.com/stxticOVFL/NWArchipelago/releases/latest) and drop it in the `Mods` folder.
+4. Download `NWArchipelago.dll` from the [Releases page](https://github.com/stxticOVFL/NWArchipelagoMod/releases/latest) and drop it in the `Mods` folder.
 5. Additionally download `Archipelago.MultiClient.Net.dll` from the release and drop that in the *`UserLibs`* folder.
     - If you've already done this, there's usually no need to do it again.
 6. Re-open the game and press **`F5`** (by default) to open the preferences menu.
