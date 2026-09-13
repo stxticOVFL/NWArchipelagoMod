@@ -39,8 +39,8 @@ namespace NWArchipelago.Objects
 
         internal static MelonPreferences_Entry<bool> hints;
         internal static MelonPreferences_Entry<HintDisplay> hintDisplay;
-        
-        internal static MelonPreferences_Entry<bool> hueShift;
+
+        internal static MelonPreferences_Entry<float> hueShift;
 
         static void Setup()
         {
@@ -70,6 +70,10 @@ namespace NWArchipelago.Objects
                 WhenAvailable - Show the hinted button only when any are in logic
                 Never - Never show the hints button
                 """, HintDisplay.WhenAvailable);
+
+            hueShift = NeonLite.Settings.Add(Settings.h, "Tracking", "hueShift", "Hue Shift",
+                "Changes the hue of the tracker colors to aid colorblind users.",
+                0f, new MelonLoader.Preferences.ValueRange<float>(0, 1));
         }
 
         static readonly ConditionalWeakTable<LevelData, Logic> logicData = new();
@@ -411,13 +415,19 @@ namespace NWArchipelago.Objects
             if (!outOfLogic.Value)
                 outl = false;
 
-            if (hintl && hints)
-                return blueLight;
-            if (inl)
-                return greenLight;
+            var ret = lowLight;
             if (outl)
-                return yellowLight;
-            return lowLight;
+                ret = yellowLight;
+            if (inl)
+                ret = greenLight;
+            if (hintl && hints)
+                ret = blueLight;
+
+            Color.RGBToHSV(ret, out var h, out var s, out var v);
+            h -= hueShift.Value;
+            while (h < 0)
+                h += 1;
+            return Color.HSVToRGB(h, s, v);
         }
 
         Logic Clear() {

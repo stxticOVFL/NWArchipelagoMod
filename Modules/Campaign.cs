@@ -265,6 +265,7 @@ namespace NWArchipelago.Modules
         internal static void HandleSaveCData(bool save = false)
         {
             GameDataManager.saveData.currentCampaign = CAMPAIGN_ID;
+
             var cstats = GameDataManager.campaignStats[CAMPAIGN_ID];
 
             if (SlotData.unlockMethod != UnlockMethod.Levels)
