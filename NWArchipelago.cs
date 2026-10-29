@@ -150,6 +150,71 @@ namespace NWArchipelago
         }
     }
 
+    [Flags]
+    internal enum CardAbilityFlags : ushort
+    {
+        FistOnly = 0,
+        Katana = 1 << 0,
+        PurifyFire = 1 << 1,
+        PurifyDiscard = 1 << 2,
+        ElevateFire = 1 << 3,
+        ElevateDiscard = 1 << 4,
+        GodspeedFire = 1 << 5,
+        GodspeedDiscard = 1 << 6,
+        StompFire = 1 << 7,
+        StompDiscard = 1 << 8,
+        FireballFire = 1 << 9,
+        FireballDiscard = 1 << 10,
+        DominionFire = 1 << 11,
+        DominionDiscard = 1 << 12,
+        BookOfLife = 1 << 13,
+
+        Purify = PurifyFire | PurifyDiscard,
+        Elevate = ElevateFire | ElevateDiscard,
+        Godspeed = GodspeedFire | GodspeedDiscard,
+        Stomp = StompFire | StompDiscard,
+        Fireball = FireballFire | FireballDiscard,
+        Dominion = DominionFire | DominionDiscard,
+
+        AllFire = PurifyFire | ElevateFire | GodspeedFire | StompFire | FireballFire | DominionFire | Katana,
+        AllDiscard = PurifyDiscard | ElevateDiscard | GodspeedDiscard | StompDiscard | FireballDiscard | DominionDiscard | BookOfLife,
+    }
+
+    internal static class CAFExts {
+        public static readonly Dictionary<string, CardAbilityFlags> idToCAF = new()
+        {
+            ["KATANA"] = CardAbilityFlags.Katana,
+            ["MACHINEGUN"] = CardAbilityFlags.Purify,
+            ["PISTOL"] = CardAbilityFlags.Elevate,
+            ["RIFLE"] = CardAbilityFlags.Godspeed,
+            ["UZI"] = CardAbilityFlags.Stomp,
+            ["SHOTGUN"] = CardAbilityFlags.Fireball,
+            ["ROCKETLAUNCHER"] = CardAbilityFlags.Dominion,
+            ["RAPTURE"] = CardAbilityFlags.BookOfLife
+        };
+
+        public static readonly Dictionary<CardAbilityFlags, string> cafToID = new()
+        {
+            [CardAbilityFlags.Katana] = "KATANA",
+            [CardAbilityFlags.PurifyFire] = "MACHINEGUN",
+            [CardAbilityFlags.PurifyDiscard] = "MACHINEGUN",
+            [CardAbilityFlags.ElevateFire] = "PISTOL",
+            [CardAbilityFlags.ElevateDiscard] = "PISTOL",
+            [CardAbilityFlags.GodspeedFire] = "RIFLE",
+            [CardAbilityFlags.GodspeedDiscard] = "RIFLE",
+            [CardAbilityFlags.StompFire] = "UZI",
+            [CardAbilityFlags.StompDiscard] = "UZI",
+            [CardAbilityFlags.FireballFire] = "SHOTGUN",
+            [CardAbilityFlags.FireballDiscard] = "SHOTGUN",
+            [CardAbilityFlags.DominionFire] = "ROCKETLAUNCHER",
+            [CardAbilityFlags.DominionDiscard] = "ROCKETLAUNCHER",
+            [CardAbilityFlags.BookOfLife] = "RAPTURE"
+        };
+
+        public static CardAbilityFlags IDtoCAF(string id) => idToCAF[id];
+        public static string CAFtoID(this CardAbilityFlags flags) => cafToID[flags];
+    }
+
     public static class Extensions
     {
 #pragma warning disable CS0162

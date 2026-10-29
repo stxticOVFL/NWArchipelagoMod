@@ -33,3 +33,8 @@ Any commercial use of Neon White assets, trademarks, or intellectual property re
 
 Only the original code and assets created by contributors as part of this mod are licensed under the MIT License above.
 This license applies only to that original content and does not apply to Neon White or to any part of the original game.
+
+--------------------------------------------------------------------
+
+Some Archipelago assets are used in this repository in the UnityProject folder;
+these are licensed under [Attribution-NonCommercial 4.0 International](http://creativecommons.org/licenses/by-nc/4.0/) by Krista Corkos and Christopher Wilson, © 2022.

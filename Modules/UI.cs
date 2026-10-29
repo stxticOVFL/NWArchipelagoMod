@@ -32,7 +32,10 @@ namespace NWArchipelago.Modules
         static readonly HashSet<State> testingStates = [State.Staging, State.Results, State.Pause];
         static void MainMenuState(State newState)
         {
-            TestPanel.i.gameObject.SetActive(testingStates.Contains(newState) && Settings.testing.Value);
+            var show = testingStates.Contains(newState);
+            if (!Settings.testMode && newState == State.Results)
+                show = false; // if we're in togglemode just don't show it in the results screen tbh
+            TestPanel.i.gameObject.SetActive(show);
         }
     }
 }

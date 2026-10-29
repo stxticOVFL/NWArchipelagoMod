@@ -23,8 +23,8 @@ namespace NWArchipelago.Modules
         const bool priority = true;
         const bool active = true;
 
-        internal static HashSet<string> fires = [];
-        internal static HashSet<string> discards = [];
+        internal static Dictionary<string, CardAbilityFlags> currentflags = [];
+        internal static CardAbilityFlags disabled = CardAbilityFlags.FistOnly;
 
         internal static List<CardPickup> cardPickups = [];
 
@@ -64,13 +64,48 @@ namespace NWArchipelago.Modules
 
         internal static void Clear()
         {
-            fires.Clear();
-            discards.Clear();
+            currentflags.Clear();
+            disabled = CardAbilityFlags.FistOnly;
             cardPickups.Clear();
         }
 
-        internal static void OnLevelLoad(LevelData _)
+        static LevelData lastLevel;
+        internal static void OnLevelLoad(LevelData level)
         {
+            if (lastLevel != level && !Settings.testMode)
+            {
+                lastLevel = level;
+                var caf = CardAbilityFlags.FistOnly;
+
+                if (currentflags.TryGetValue("", out var missionCAF))
+                    caf |= missionCAF;
+                // check the ingame missions first; those are the default
+                var gd = Game.Instance.GetGameData();
+                var missions = (Campaign.ogCampaignBak ?? gd.GetCampaign(Campaign.OGCAMPAIGN_ID)).missionData;
+                if (level.isSidequest)
+                    missions = (Campaign.sqCampaignBak ?? gd.GetCampaign(Campaign.SQCAMPAIGN_ID)).missionData;
+
+                var missioncheck = missions.FirstOrDefault(m => m.levels.Contains(level));
+                if (missioncheck && currentflags.TryGetValue(missioncheck.missionID, out missionCAF))
+                    caf |= missionCAF;
+
+                // check our generated missions
+                missions = Campaign.campaign.missionData;
+                missioncheck = missions.FirstOrDefault(m => m.levels.Contains(level));
+                if (missioncheck && currentflags.TryGetValue(missioncheck.missionID, out missionCAF))
+                    caf |= missionCAF;
+
+                var cafI = (int)caf;
+
+                var c = TestPanel.i.toggles.Count;
+                for (int i = 0; i < c; ++i) {
+                    var toggle = TestPanel.i.toggles[i];
+                    var disable = ((1 << i) & cafI) == 0;
+                    toggle.Disable(disable);
+                    if (!disable)
+                        toggle.toggle.isOn = true;
+                }
+            }
             cardPickups = [.. cardPickups.Where(c => c != null)];
         }
 
@@ -89,12 +124,70 @@ namespace NWArchipelago.Modules
             PlayerCardData.Type.WeaponProjectile, PlayerCardData.Type.WeaponHitscan, PlayerCardData.Type.SpecialAbility
         ];
 
+        internal static bool CheckCAF(CardAbilityFlags check, LevelData level = null, bool checkDisabled = true)
+        {
+            if (!level)
+                level = Game.Instance.GetCurrentLevel();
+
+            var caf = CardAbilityFlags.FistOnly;
+
+            if (currentflags.TryGetValue("", out var missionCAF))
+                caf |= missionCAF;
+            if (!Settings.testMode)
+            {
+                // check the ingame missions first; those are the default
+                var gd = Game.Instance.GetGameData();
+                var missions = (Campaign.ogCampaignBak ?? gd.GetCampaign(Campaign.OGCAMPAIGN_ID)).missionData;
+                if (level.isSidequest)
+                    missions = (Campaign.sqCampaignBak ?? gd.GetCampaign(Campaign.SQCAMPAIGN_ID)).missionData;
+
+                NWArchipelago.Log.DebugMsg($"{missions} missions");
+
+                var missioncheck = missions.FirstOrDefault(m => m.levels.Contains(level));
+                NWArchipelago.Log.DebugMsg($"{missioncheck} missioncheck");
+
+                if (missioncheck && currentflags.TryGetValue(missioncheck.missionID, out missionCAF))
+                    caf |= missionCAF;
+
+                // check our generated missions
+
+                missions = Campaign.campaign.missionData;
+                NWArchipelago.Log.DebugMsg($"{missions} missions");
+
+                missioncheck = missions.FirstOrDefault(m => m.levels.Contains(level));
+                if (missioncheck && currentflags.TryGetValue(missioncheck.missionID, out missionCAF))
+                    caf |= missionCAF;
+            }
+
+
+            caf &= check;
+            if (checkDisabled)
+                caf &= ~disabled;
+
+            return caf.HasFlag(check);
+        }
+
+        internal static (bool fire, bool discard) CheckCard(string cardID, LevelData level = null, bool checkDisabled = true)
+        {
+            if (cardID == "FISTS")
+                return (true, true); // ig
+            if (!level)
+                level = Game.Instance.GetCurrentLevel();
+
+            NWArchipelago.Log.DebugMsg($"check {cardID}");
+            var check = CAFExts.IDtoCAF(cardID);
+            return (CheckCAF(check & CardAbilityFlags.AllFire, level, checkDisabled),
+                CheckCAF(check & CardAbilityFlags.AllDiscard, level, checkDisabled));
+        }
+
         internal static void CheckPickup(PlayerCardData data, ref bool __result)
         {
             if (!__result || !types.Contains(data.cardType))
                 return;
 
-            __result = fires.Contains(data.cardID) || discards.Contains(data.cardID);
+            var (fire, discard) = CheckCard(data.cardID);
+
+            __result = fire || discard;
             var lvl = Game.Instance.GetCurrentLevel();
             if (!lvl)
                 return;
@@ -103,8 +196,8 @@ namespace NWArchipelago.Modules
             if (discardLock == null)
                 return;
 
-            if (discards.Contains(data.cardID) && discardLock.TestConditionLocked())
-                __result = fires.Contains(data.cardID);
+            if (discard && discardLock.TestConditionLocked())
+                __result = fire;
         }
 
         internal static bool JamGun(int handIndex, ref bool __result)
@@ -112,7 +205,7 @@ namespace NWArchipelago.Modules
             var deck = RM.mechController.GetPlayerCardDeck();
             var card = deck.GetCardInHand(handIndex);
             PlayerCardData cardData = card.data;
-            if (fires.Contains(cardData.cardID) || cardData.cardType == PlayerCardData.Type.WeaponHitscan)
+            if (CheckCard(cardData.cardID).fire || cardData.cardType == PlayerCardData.Type.WeaponHitscan)
                 return true;
 
             if (RM.mechController._bulletsFiredThisBurst++ <= 0)
@@ -133,13 +226,13 @@ namespace NWArchipelago.Modules
             if (cardData.discardAbility == PlayerCardData.DiscardAbility.None || cardData.cardType == PlayerCardData.Type.WeaponHitscan)
                 __result = false;
             else
-                __result = !discards.Contains(cardData.cardID);
+                __result = !CheckCard(cardData.cardID).discard;
         }
 
         static void CheckAmmoText(PlayerUICardHUD __instance, PlayerCard card)
         {
             PlayerCardData cardData = card.data;
-            if (fires.Contains(cardData.cardID) || cardData.cardType == PlayerCardData.Type.WeaponHitscan)
+            if (CheckCard(cardData.cardID).fire || cardData.cardType == PlayerCardData.Type.WeaponHitscan)
                 return;
 
             __instance.textAmmo.text = "X";
@@ -149,7 +242,7 @@ namespace NWArchipelago.Modules
         {
             if (Miracle.miracleCount > 0)
                 return "KATANA_MIRACLE";
-            else if (!fires.Contains("KATANA"))
+            else if (!CheckCard("KATANA").fire)
                 return "FISTS";
             else
                 return "KATANA";
@@ -181,7 +274,7 @@ namespace NWArchipelago.Modules
                 .InstructionEnumeration();
         }
 
-        internal static void CheckCards(HashSet<string> newFires = null)
+        internal static void RefreshUIPickups(HashSet<string> newFires = null)
         {
             foreach (var card in cardPickups)
             {
@@ -193,7 +286,7 @@ namespace NWArchipelago.Modules
                 card.uiCard.UICards[0].SetCollectible(check);
             }
 
-            if (RM.mechController)
+            if (RM.mechController && RM.mechController.GetPlayerCardDeck() != null)
             {
                 var heldCard = RM.mechController.GetPlayerCardDeck().GetCardInHand(0);
                 if (newFires != null && newFires.Contains(heldCard.data.cardID))
@@ -202,30 +295,62 @@ namespace NWArchipelago.Modules
             }
         }
 
-        static readonly string[] affectedCards = ["KATANA", "PISTOL", "MACHINEGUN", "RIFLE", "UZI", "SHOTGUN", "ROCKETLAUNCHER", "RAPTURE"];
-        static readonly string[] englishCards = ["Katana", "Elevate", "Purify", "Godspeed", "Stomp", "Fireball", "Dominion", "Book of Life"];
+        static readonly string[] affectedCards = ["KATANA", "MACHINEGUN", "PISTOL", "RIFLE", "UZI", "SHOTGUN", "ROCKETLAUNCHER", "RAPTURE"];
+        static readonly string[] englishCards = ["Katana", "Purify", "Elevate", "Godspeed", "Stomp", "Fireball", "Dominion", "Book of Life"];
         internal static string EngToID(string eng) => affectedCards[Array.IndexOf(englishCards, eng)];
 
-        internal static bool ParseCard(string item)
+        internal static bool ParseCard(int id)
         {
-            if (item.EndsWith("Fire") || item.EndsWith("Discard"))
+            var shift = (id - 1) % 100;
+            var caf = (CardAbilityFlags)(1 << shift);
+            if (!Enum.IsDefined(typeof(CardAbilityFlags), caf))
+                return false;
+
+            string missionID = "";
+            MissionData mission = null;
+            var type = id / 10000;
+            var off = id / 100 % 100;
+            if (type == 2)
             {
-                var card = EngToID(item.Split()[0]);
-                SetOverrides(item.EndsWith("Fire") ? fires : discards, card, true);
-                return true;
+                missionID = $"M_ARCHI{off}";
+                mission = Campaign.campaign.GetMissionData(missionID);
             }
-            if (item == "Katana")
+            else if (type == 1)
             {
-                SetOverrides(fires, EngToID(item), true);
-                return true;
-            }
-            if (item == "Book of Life")
-            {
-                SetOverrides(discards, EngToID(item), true);
-                return true;
+                var gd = Game.Instance.GetGameData();
+
+                mission = (Campaign.ogCampaignBak ?? gd.GetCampaign(Campaign.OGCAMPAIGN_ID)).missionData
+                    .Concat((Campaign.sqCampaignBak ?? gd.GetCampaign(Campaign.SQCAMPAIGN_ID)).missionData)
+                    .ElementAtOrDefault(off);
+                if (!mission || mission.missionID.Contains("GREEN")) // no green
+                    return false;
+                missionID = mission.missionID;
             }
 
-            return false;
+            if (!currentflags.TryGetValue(missionID, out var flags))
+                flags = CardAbilityFlags.FistOnly;
+
+            // NWArchipelago.Log.DebugMsg($"{id} {id % 100} {1 << (id % 100)} {caf} {type} {off} {mission} {flags | caf}");
+
+            currentflags[missionID] = flags | caf;
+
+            if ((caf & CardAbilityFlags.AllFire) != CardAbilityFlags.FistOnly)
+                RefreshUIPickups([caf.CAFtoID()]);
+            else
+                RefreshUIPickups();
+
+            if (TestPanel.setup)
+            {
+                var level = Game.Instance.GetCurrentLevel();
+                // lets also force the ID of whatever we got :3
+                if (type != 0 && !mission.levels.Any(x => x == level))
+                    return true;
+                var toggle = TestPanel.i.toggles[shift];
+                toggle.Disable(false);
+                toggle.toggle.isOn = true;
+            }
+
+            return true;
         }
 
         internal static void SetOverrides(HashSet<string> set, string value, bool add)
@@ -235,18 +360,51 @@ namespace NWArchipelago.Modules
             else
                 set.Remove(value);
 
-            CheckCards();
+            RefreshUIPickups();
         }
 
         internal static void SetupTestPanel()
         {
-            TestPanel.OnFireToggle += (ID, state) => SetOverrides(fires, ID, state);
-            TestPanel.OnDiscardToggle += (ID, state) => SetOverrides(discards, ID, state);
+            if (TestPanel.setup)
+                return;
 
+            TestPanel.setup = true;
+
+            if (Settings.testMode)
+            {
+                TestPanel.OnPressToggle += (ID, state) =>
+                {
+                    if (state)
+                        ParseCard(ID);
+                    else
+                    {
+                        currentflags[""] &= ~(CardAbilityFlags)(1 << (ID - 1));
+                        RefreshUIPickups();
+                    }
+                };
+            }
+            else
+            {
+                TestPanel.OnPressToggle += (ID, state) =>
+                {
+                    if (state)
+                        disabled &= ~(CardAbilityFlags)(1 << (ID - 1));
+                    else
+                        disabled |= (CardAbilityFlags)(1 << (ID - 1));
+
+                    RefreshUIPickups();
+                };
+            }
+
+            int i = 0;
             foreach (var cid in affectedCards)
             {
                 var card = Game.Instance.GetGameData().GetCard(cid);
-                TestPanel.i.AddCard(LocalizationManager.GetTranslation(UICard.GetAbilityNameFormatted(card)), cid, card.cardColor, cid != "RAPTURE", cid != "KATANA");
+                var name = LocalizationManager.GetTranslation(UICard.GetAbilityNameFormatted(card));
+                if (string.IsNullOrWhiteSpace(name))
+                    name = englishCards[i];
+                TestPanel.i.AddCard(name, card.cardColor, cid != "RAPTURE", cid != "KATANA");
+                ++i;
             }
         }
 
@@ -401,14 +559,14 @@ namespace NWArchipelago.Modules
                 return;
 
             __result = __instance.GetCurrentHand().Take(__instance.GetPlayerCardDeck().GetHandCount())
-                .Any(x => !NONAMMO.Contains(x.data.cardID) && fires.Contains(x.data.cardID));
+                .Any(x => !NONAMMO.Contains(x.data.cardID) && CheckCard(x.data.cardID).fire);
         }
         static bool DirectAmmo(MechController __instance)
         {
             var cards = __instance.GetCurrentHand().Take(__instance.GetPlayerCardDeck().GetHandCount()).ToArray();
 
             var card = cards
-                .FirstOrDefault(x => !NONAMMO.Contains(x.data.cardID) && fires.Contains(x.data.cardID));
+                .FirstOrDefault(x => !NONAMMO.Contains(x.data.cardID) && CheckCard(x.data.cardID).fire);
             if (card == null)
                 return false;
 

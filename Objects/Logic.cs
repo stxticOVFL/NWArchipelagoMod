@@ -89,69 +89,18 @@ namespace NWArchipelago.Objects
             return ret;
         }
 
-        [Flags]
-        internal enum LevelRequirements : ushort
-        {
-            FistOnly = 0,
-            Katana = 1 << 0,
-            PurifyFire = 1 << 1,
-            PurifyDiscard = 1 << 2,
-            ElevateFire = 1 << 3,
-            ElevateDiscard = 1 << 4,
-            GodspeedFire = 1 << 5,
-            GodspeedDiscard = 1 << 6,
-            StompFire = 1 << 7,
-            StompDiscard = 1 << 8,
-            FireballFire = 1 << 9,
-            FireballDiscard = 1 << 10,
-            DominionFire = 1 << 11,
-            DominionDiscard = 1 << 12,
-            BookOfLife = 1 << 13
-        }
-
-        internal static bool HasSingleRequirement(LevelRequirements single)
-        {
-            if (single == LevelRequirements.FistOnly)
-                return true;
-            var str = single.ToString();
-
-            HashSet<string> tolook = null;
-            if (str.EndsWith("Fire"))
-            {
-                str = str.Substring(0, str.Length - "Fire".Length);
-                tolook = Cards.fires;
-            }
-            else if (str.EndsWith("Discard"))
-            {
-                str = str.Substring(0, str.Length - "Discard".Length);
-                tolook = Cards.discards;
-            }
-            else if (single == LevelRequirements.Katana)
-                tolook = Cards.fires;
-            else if (single == LevelRequirements.BookOfLife)
-            {
-                str = "Book of Life";
-                tolook = Cards.discards;
-            }
-
-            return tolook.Contains(Cards.EngToID(str));
-        }
-
-        internal static bool HasRequirements(LevelRequirements requirements)
-        {
-            if (requirements == LevelRequirements.FistOnly)
+        internal bool HasRequirements(CardAbilityFlags requirements) {
+            if (requirements == CardAbilityFlags.FistOnly)
                 return true;
 
-            return Enum.GetValues(typeof(LevelRequirements)).Cast<LevelRequirements>()
-                .Where(f => f != LevelRequirements.FistOnly && requirements.HasFlag(f))
-                .All(HasSingleRequirement);
+            return Cards.CheckCAF(requirements, level, false);
         }
 
         LevelData level;
         internal int ranks;
 
-        internal readonly Dictionary<MedalEnum, HashSet<LevelRequirements>> perMedalLogic = [];
-        internal HashSet<LevelRequirements> giftLogic = [];
+        internal readonly Dictionary<MedalEnum, HashSet<CardAbilityFlags>> perMedalLogic = [];
+        internal HashSet<CardAbilityFlags> giftLogic = [];
 
         internal bool CanAccessLevel()
         {
@@ -466,10 +415,10 @@ namespace NWArchipelago.Objects
 
                     foreach (var logic in logics.Select(x => x.Make<LogicProxy>()))
                     {
-                        var req = (LevelRequirements)logic.r;
+                        var req = (CardAbilityFlags)logic.r;
                         void AddToLogic(Logic addTo)
                         {
-                            void AddToSet(HashSet<LevelRequirements> set)
+                            void AddToSet(HashSet<CardAbilityFlags> set)
                             {
                                 if (set.Any(x => req.HasFlag(x)))
                                     return;

@@ -181,12 +181,14 @@ namespace NWArchipelago.Modules
             NWArchipelago.Log.DebugMsg($"parse {item.ItemName}");
             var type = item.ItemId / 100;
 
+            if (type >= 100 || type == 5) {
+                if (!Cards.ParseCard((int)item.ItemId))
+                    NWArchipelago.Log.Warning($"Unknown card-like item {item.ItemName}");
+                return;
+            }
+
             switch (type)
             {
-                case 5: // cards
-                    if (!Cards.ParseCard(item.ItemName))
-                        NWArchipelago.Log.Warning($"Unknown card-like item {item.ItemName}");
-                    return;
                 case 4: // progression
                     SaveHandler.archiSaveData.neonRank++;
                     return;
@@ -633,12 +635,12 @@ namespace NWArchipelago.Modules
         static void CheckDeathLink(MechController __instance, bool restartImmediately, bool playRestartSound) {
             if (!SlotData.DeathL.enabled)
                 return;
-            if (!__instance.GetIsAlive())
-                return;
             if (ignoreDeath) {
                 ignoreDeath = false;
                 return;
             }
+            if (!__instance.GetIsAlive())
+                return;
 
             if (restartImmediately)
             {

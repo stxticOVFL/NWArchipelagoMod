@@ -16,18 +16,22 @@ namespace NWArchipelago.UI.Testing
         Color color;
         Color onColor;
 
+        string baseText;
+
         void Awake()
         {
             toggle = GetComponent<Toggle>();
             coloredBG = toggle.graphic;
             text = GetComponentInChildren<TextMeshProUGUI>();
+            baseText = text.text;
             onColor = text.color;
             toggle.onValueChanged.AddListener(OnToggle);
+
+            OnToggle(toggle.isOn);
         }
 
         void Start()
         {
-            OnToggle(toggle.isOn);
         }
 
         public void SetColor(Color color)
@@ -44,6 +48,13 @@ namespace NWArchipelago.UI.Testing
                 text.color = onColor;
             else
                 text.color = color;
+        }
+
+        public void Disable(bool setDisabled) {
+            toggle.SetIsOnWithoutNotify(false);
+            toggle.interactable = !setDisabled;
+            text.color = setDisabled ? Color.gray : color;
+            text.text = setDisabled ? "X" : baseText;
         }
     }
 }

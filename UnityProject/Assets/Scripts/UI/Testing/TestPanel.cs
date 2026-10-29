@@ -6,6 +6,8 @@ namespace NWArchipelago.UI.Testing
 {
     internal class TestPanel : MonoBehaviour
     {
+        public static bool setup = false;
+
         internal static TestPanel i;
         void Awake()
         {
@@ -15,24 +17,33 @@ namespace NWArchipelago.UI.Testing
 
         public GameObject cardSelectBase;
 
-        public delegate void OnToggled(string ID, bool state);
-        static internal event OnToggled OnFireToggle;
-        static internal event OnToggled OnDiscardToggle;
+        public delegate void OnToggled(int ID, bool state);
+        static internal event OnToggled OnPressToggle;
 
-        public CardSelect AddCard(string name, string ID, Color color, bool hasFire, bool hasDiscard)
+        public static int id = 0;
+
+        public readonly List<ColorToggle> toggles = new List<ColorToggle>();
+
+        public CardSelect AddCard(string name, Color color, bool hasFire, bool hasDiscard)
         {
             var go = Instantiate(cardSelectBase, cardSelectBase.transform.parent);
             go.SetActive(true);
             var cs = go.GetComponent<CardSelect>();
-            cs.SetCard(name, ID, color);
+            cs.SetCard(name, color);
 
-            if (hasFire)
-                cs.fire.toggle.onValueChanged.AddListener(x => OnFireToggle?.Invoke(ID, x));
+            if (hasFire) {
+                var copied = ++id;
+                toggles.Add(cs.fire);
+                cs.fire.toggle.onValueChanged.AddListener(x => OnPressToggle?.Invoke(copied, x));
+            }
             else
                 cs.fire.gameObject.SetActive(false);
 
-            if (hasDiscard)
-                cs.discard.toggle.onValueChanged.AddListener(x => OnDiscardToggle?.Invoke(ID, x));
+            if (hasDiscard) {
+                var copied = ++id;
+                toggles.Add(cs.discard);
+                cs.discard.toggle.onValueChanged.AddListener(x => OnPressToggle?.Invoke(copied, x));
+            }
             else
                 cs.discard.gameObject.SetActive(false);
             return cs;
