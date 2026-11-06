@@ -178,7 +178,7 @@ namespace NWArchipelago.Modules
 
         internal static void ParseItem(ItemInfo item)
         {
-            NWArchipelago.Log.DebugMsg($"parse {item.ItemName}");
+            NWArchipelago.Log.DebugMsg($"parse {item.ItemName} {item.ItemId}");
             var type = item.ItemId / 100;
 
             if (type >= 100 || type == 5) {
@@ -198,20 +198,25 @@ namespace NWArchipelago.Modules
                     return;
                 case 8: // misc
                     type = item.ItemId - 800;
+                    PlayerCardData card = null;
+                    var gd = Game.Instance.GetGameData();
                     switch (type)
                     {
                         case 51:
-                            RM.mechController?.DoConsumable(PlayerCardData.ConsumableType.HealthUp);
+                            card = gd.GetCard("HEALTH");
                             break;
                         case 52:
-                            if (!RM.mechController)
+                            if (!RM.mechController || RM.mechController.GetCurrentHand() == null)
                                 break;
-                            bool ammoavail = false;
+                            bool ammoavail = true;
                             Cards.CheckAmmo(RM.mechController, ref ammoavail);
-                            if (ammoavail)
-                                RM.mechController.DoConsumable(PlayerCardData.ConsumableType.Ammo);
+                            if (!ammoavail)
+                                break;
+                            card = gd.GetCard("AMMO");
                             break;
                     }
+                    if (RM.mechController && card != null)
+                        RM.mechController.OnPickupCard(card);
                     return;
             }
         }
@@ -409,6 +414,7 @@ namespace NWArchipelago.Modules
 
         internal static async Task PrepareItemChecks()
         {
+            Cards.doCache = true;
             doCampaignCheck = false;
             session.Items.ItemReceived -= ItemRecieved;
             session.Items.ItemReceived += ItemRecieved;
@@ -554,6 +560,8 @@ namespace NWArchipelago.Modules
             }, info);
 
             NWArchipelago.Log.DebugMsg("items recieved checks");
+
+            Cards.FireCardCache();
 
             static async Task WaitForPacket()
             {

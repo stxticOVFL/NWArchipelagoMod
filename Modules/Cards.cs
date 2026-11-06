@@ -31,6 +31,9 @@ namespace NWArchipelago.Modules
         static MelonPreferences_Entry<bool> gifts;
         internal static MelonPreferences_Entry<bool> tutorials;
 
+        internal static bool doCache = false;
+        static readonly List<int> cardCache = [];
+
         internal static void Setup()
         {
             gifts = NeonLite.Settings.Add(Settings.h, "Testing", "gifts", "Show Gifts", null, true, true);
@@ -141,19 +144,13 @@ namespace NWArchipelago.Modules
                 if (level.isSidequest)
                     missions = (Campaign.sqCampaignBak ?? gd.GetCampaign(Campaign.SQCAMPAIGN_ID)).missionData;
 
-                NWArchipelago.Log.DebugMsg($"{missions} missions");
-
                 var missioncheck = missions.FirstOrDefault(m => m.levels.Contains(level));
-                NWArchipelago.Log.DebugMsg($"{missioncheck} missioncheck");
-
                 if (missioncheck && currentflags.TryGetValue(missioncheck.missionID, out missionCAF))
                     caf |= missionCAF;
 
                 // check our generated missions
 
                 missions = Campaign.campaign.missionData;
-                NWArchipelago.Log.DebugMsg($"{missions} missions");
-
                 missioncheck = missions.FirstOrDefault(m => m.levels.Contains(level));
                 if (missioncheck && currentflags.TryGetValue(missioncheck.missionID, out missionCAF))
                     caf |= missionCAF;
@@ -170,14 +167,21 @@ namespace NWArchipelago.Modules
         internal static (bool fire, bool discard) CheckCard(string cardID, LevelData level = null, bool checkDisabled = true)
         {
             if (cardID == "FISTS")
-                return (true, true); // ig
+                return (true, false); // ig
+            bool fireF = false;
+            bool discardF = false;
+
+            if (cardID == "KATANA")
+                discardF = true;
+            else if (cardID == "RAPTURE")
+                fireF = true;
+
             if (!level)
                 level = Game.Instance.GetCurrentLevel();
 
-            NWArchipelago.Log.DebugMsg($"check {cardID}");
             var check = CAFExts.IDtoCAF(cardID);
-            return (CheckCAF(check & CardAbilityFlags.AllFire, level, checkDisabled),
-                CheckCAF(check & CardAbilityFlags.AllDiscard, level, checkDisabled));
+            return (!fireF && CheckCAF(check & CardAbilityFlags.AllFire, level, checkDisabled),
+                !discardF && CheckCAF(check & CardAbilityFlags.AllDiscard, level, checkDisabled));
         }
 
         internal static void CheckPickup(PlayerCardData data, ref bool __result)
@@ -299,8 +303,24 @@ namespace NWArchipelago.Modules
         static readonly string[] englishCards = ["Katana", "Purify", "Elevate", "Godspeed", "Stomp", "Fireball", "Dominion", "Book of Life"];
         internal static string EngToID(string eng) => affectedCards[Array.IndexOf(englishCards, eng)];
 
+        internal static void FireCardCache() {
+            doCache = false;
+            foreach (var id in cardCache)
+            {
+                if (!ParseCard(id))
+                    NWArchipelago.Log.Warning($"Unknown card-like item #{id}");
+            }
+            cardCache.Clear();
+        }
+
         internal static bool ParseCard(int id)
         {
+            if (doCache)
+            {
+                cardCache.Add(id);
+                return true;
+            }
+
             var shift = (id - 1) % 100;
             var caf = (CardAbilityFlags)(1 << shift);
             if (!Enum.IsDefined(typeof(CardAbilityFlags), caf))
@@ -339,7 +359,7 @@ namespace NWArchipelago.Modules
             else
                 RefreshUIPickups();
 
-            if (TestPanel.setup)
+            if (TestPanel.setup && !Settings.testMode)
             {
                 var level = Game.Instance.GetCurrentLevel();
                 // lets also force the ID of whatever we got :3
@@ -394,6 +414,11 @@ namespace NWArchipelago.Modules
 
                     RefreshUIPickups();
                 };
+
+                var title = TestPanel.i.GetComponentInChildren<TextMeshProUGUI>();
+                var localized = title.GetOrAddComponent<AxKLocalizedText>();
+                localized.textMeshProUGUI = title;
+                localized.SetKey(NWArchipelago.LC.Term("TESTP_TOGGLE"));
             }
 
             int i = 0;

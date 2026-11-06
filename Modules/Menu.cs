@@ -90,6 +90,10 @@ namespace NWArchipelago.Modules
             Patching.AddPatch(typeof(MenuScreenResults), "OnSetVisible", ManageButtonsResults, Patching.PatchTarget.Postfix);
             Patching.AddPatch(typeof(MenuScreenPause), "OnSetVisible", ManageButtonsPause, Patching.PatchTarget.Postfix);
 
+            // this should do nothing of value for archipelago
+            Patching.AddPatch(typeof(MenuScreenLoading), "SetUpMissionProgressBar", LoadingStopThat, Patching.PatchTarget.Prefix);
+            Patching.AddPatch(typeof(PlayerUI), "SetRestartIndicatorAmount", RestartIndicatorWhat, Patching.PatchTarget.Prefix);
+
             APManage.OnStatusChanged += ForceTitle;
         }
 
@@ -681,13 +685,18 @@ namespace NWArchipelago.Modules
 
         static void ReplaceEnvironment(LevelInfo __instance, LevelData ____currentLevel)
         {
-            if (Logic.display.Value < Logic.LogicDisplay.Full || !Logic.HasLogic(____currentLevel))
-                return;
-            __instance._levelEnvironmentNameText.text =
-                NWArchipelago.LC.T("CHECKS_REMAINING")
-                .Replace("{CHK}", LocalizationManager.GetTranslation(
-                    Logic.GetStrings(out var s, level: ____currentLevel, hints: false)))
-                .Replace("{CN}", s.cN.ToString());
+            if (Logic.display.Value >= Logic.LogicDisplay.Full && Logic.HasLogic(____currentLevel)) {
+                __instance._levelEnvironmentNameText.text =
+                    NWArchipelago.LC.T("CHECKS_REMAINING")
+                    .Replace("{CHK}", LocalizationManager.GetTranslation(
+                        Logic.GetStrings(out var s, level: ____currentLevel, hints: false)))
+                    .Replace("{CN}", s.cN.ToString());
+            }
+            if (showKey.Value)
+            {
+                __instance._levelEnvironmentNameText.text +=
+                    $" | ({Campaign.levelKey[____currentLevel.levelID]})";
+            }
         }
 
         static void ReloadMission(MainMenu.State ____backButtonState, ref bool ____reloadButtonsOnBack)
@@ -955,5 +964,15 @@ namespace NWArchipelago.Modules
         }
 
         static bool NoMission(HubAction hubAction) => hubAction.ID != "PORTAL_CONTINUE_MISSION";
+
+        static void LoadingStopThat(ref LevelData levelData, ref MissionData missionData)
+        {
+            levelData = null;
+            missionData = null;
+        }
+
+        // i think this has been happening but the only logs i have are pepper's
+        // so im just hoping that this fixes something??
+        static bool RestartIndicatorWhat(GameObject ___restartIndicatorHolder) => ___restartIndicatorHolder;
     }
 }
