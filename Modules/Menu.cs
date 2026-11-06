@@ -692,7 +692,7 @@ namespace NWArchipelago.Modules
                         Logic.GetStrings(out var s, level: ____currentLevel, hints: false)))
                     .Replace("{CN}", s.cN.ToString());
             }
-            if (showKey.Value)
+            if (showKey.Value && Campaign.levelKey.ContainsKey(____currentLevel.levelID))
             {
                 __instance._levelEnvironmentNameText.text +=
                     $" | ({Campaign.levelKey[____currentLevel.levelID]})";
